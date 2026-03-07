@@ -85,7 +85,13 @@ if (-not $SkipPyInstaller) {
     & ".venv\Scripts\python.exe" -m PyInstaller `
         installer\recording_transcriber.spec `
         --noconfirm `
-        --log-level WARN
+        --log-level WARN 2>&1 | ForEach-Object {
+            # PyInstaller writes INFO/WARNING to stderr.  PowerShell would turn
+            # those into ErrorRecord objects and abort the script (due to
+            # $ErrorActionPreference = "Stop") even when PyInstaller exits 0.
+            # Printing them ourselves keeps $LASTEXITCODE accurate.
+            Write-Host $_
+        }
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "PyInstaller exited with code $LASTEXITCODE"
