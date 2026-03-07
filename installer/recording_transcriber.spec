@@ -47,13 +47,40 @@ _shared_datas     = []
 _shared_binaries  = []
 _shared_hidden    = []
 
+# onnxruntime: collect data + binaries ONLY (no hidden imports).
+# collect_all('onnxruntime') emits hundreds of 'onnxruntime.transformers.*'
+# hidden-import entries that don't exist in the installed wheel, which causes
+# PyInstaller to exit with code 1.  Additionally, importing onnxruntime in
+# PyInstaller's isolated analysis subprocess triggers a Windows access violation
+# on Python 3.13.  So we bypass both problems: grab its files manually and add
+# 'onnxruntime' to excludes in every Analysis block.
+try:
+    _ort_datas    = collect_data_files("onnxruntime", include_py_files=False)
+    _ort_binaries = []
+    import glob, os as _os
+    _ort_root = None
+    try:
+        import importlib.util as _ilu
+        _spec = _ilu.find_spec("onnxruntime")
+        if _spec and _spec.submodule_search_locations:
+            _ort_root = list(_spec.submodule_search_locations)[0]
+    except Exception:
+        pass
+    if _ort_root:
+        for _pat in ("*.dll", "*.so", "*.pyd", "capi/*.dll", "capi/*.pyd"):
+            for _f in glob.glob(_os.path.join(_ort_root, _pat)):
+                _ort_binaries.append((_f, _os.path.join("onnxruntime", _os.path.dirname(_os.path.relpath(_f, _ort_root)))))
+    _shared_datas    += _ort_datas
+    _shared_binaries += _ort_binaries
+except Exception as _e:
+    print(f"WARNING: could not collect onnxruntime files: {_e}")
+
 for pkg in (
     "faster_whisper",
     "ctranslate2",
     "openvino",
     "huggingface_hub",
     "tokenizers",
-    "onnxruntime",
 ):
     d, b, h = collect_all(pkg)
     _shared_datas    += d
@@ -98,6 +125,8 @@ main_a = Analysis(
         "tensorflow", "keras",
         "matplotlib", "notebook", "IPython",
         "numpy.distutils",
+        # Prevent analysis-time import crash (files still bundled via datas/binaries above):
+        "onnxruntime",
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -120,6 +149,8 @@ dl_a = Analysis(
         "torch", "torchvision",
         "tensorflow", "keras",
         "matplotlib", "PyQt6",
+        # Prevent analysis-time import crash (files still bundled via datas/binaries above):
+        "onnxruntime",
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
