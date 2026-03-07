@@ -46,7 +46,10 @@ DefaultGroupName={#AppName}
 AllowNoIcons=yes
 OutputDir=..\dist\installer
 OutputBaseFilename=RecordingTranscriber-{#AppVersion}-Setup
-SetupIconFile=..\assets\icon.ico
+#define IconFile "..\assets\icon.ico"
+#if FileExists(IconFile)
+SetupIconFile={#IconFile}
+#endif
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -100,30 +103,36 @@ Type: filesandordirs; Name: "{app}"
 { ── Model catalogue (must mirror src/model_manager.py MODELS list) ─────────── }
 const
   MODEL_COUNT = 6;
-
-  MODEL_NAMES: array[0..5] of String = (
-    'tiny', 'base', 'small', 'medium', 'large-v2', 'large-v3'
-  );
-
-  MODEL_DISPLAY: array[0..5] of String = (
-    'Tiny       ~75 MB   — Fastest, very basic accuracy',
-    'Base       ~145 MB  — Very fast, basic accuracy',
-    'Small      ~466 MB  — Good balance of speed and accuracy',
-    'Medium     ~1.5 GB  — High accuracy, moderate speed',
-    'Large v2   ~3.1 GB  — Very high accuracy',
-    'Large v3   ~3.1 GB  — Best overall accuracy  (recommended)'
-  );
-
-  MODEL_DETAIL: array[0..5] of String = (
-    'Good for quick tests on modest hardware.  Accuracy is noticeably limited.',
-    'Suitable for clear speech and short recordings.',
-    'Recommended starting point for most users.  Works well on CPU.',
-    'High-quality results.  Needs roughly 4 GB of RAM during inference.  A GPU is helpful.',
-    'Near human-level accuracy.  Best run on a dedicated GPU (Intel Arc or NVIDIA).',
-    'The most accurate model available.  Same weights as Large v2 with improved training — recommended for Intel Arc A-series and NVIDIA GPUs.'
-  );
-
   DEFAULT_MODEL_IDX = 5;   { large-v3 }
+
+var
+  MODEL_NAMES:   array[0..5] of String;
+  MODEL_DISPLAY: array[0..5] of String;
+  MODEL_DETAIL:  array[0..5] of String;
+
+procedure InitModelArrays;
+begin
+  MODEL_NAMES[0] := 'tiny';
+  MODEL_NAMES[1] := 'base';
+  MODEL_NAMES[2] := 'small';
+  MODEL_NAMES[3] := 'medium';
+  MODEL_NAMES[4] := 'large-v2';
+  MODEL_NAMES[5] := 'large-v3';
+
+  MODEL_DISPLAY[0] := 'Tiny       ~75 MB   - Fastest, very basic accuracy';
+  MODEL_DISPLAY[1] := 'Base       ~145 MB  - Very fast, basic accuracy';
+  MODEL_DISPLAY[2] := 'Small      ~466 MB  - Good balance of speed and accuracy';
+  MODEL_DISPLAY[3] := 'Medium     ~1.5 GB  - High accuracy, moderate speed';
+  MODEL_DISPLAY[4] := 'Large v2   ~3.1 GB  - Very high accuracy';
+  MODEL_DISPLAY[5] := 'Large v3   ~3.1 GB  - Best overall accuracy  (recommended)';
+
+  MODEL_DETAIL[0] := 'Good for quick tests on modest hardware.  Accuracy is noticeably limited.';
+  MODEL_DETAIL[1] := 'Suitable for clear speech and short recordings.';
+  MODEL_DETAIL[2] := 'Recommended starting point for most users.  Works well on CPU.';
+  MODEL_DETAIL[3] := 'High-quality results.  Needs roughly 4 GB of RAM during inference.  A GPU is helpful.';
+  MODEL_DETAIL[4] := 'Near human-level accuracy.  Best run on a dedicated GPU (Intel Arc or NVIDIA).';
+  MODEL_DETAIL[5] := 'The most accurate model available.  Same weights as Large v2 with improved training - recommended for Intel Arc A-series and NVIDIA GPUs.';
+end;
 
 { ── Page controls ─────────────────────────────────────────────────────────── }
 var
@@ -158,6 +167,8 @@ var
   i: Integer;
   SurfW: Integer;
 begin
+  InitModelArrays;
+
   { Page appears after the install-directory selection page }
   ModelPage := CreateCustomPage(
     wpSelectDir,
@@ -229,7 +240,7 @@ begin
 end;
 
 { ── Called by [Run] Check to decide whether to run the downloader ─────────── }
-function ShouldDownloadModel(Param: String): Boolean;
+function ShouldDownloadModel: Boolean;
 begin
   Result := DownloadNow.Checked;
 end;
