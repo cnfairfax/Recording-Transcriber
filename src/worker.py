@@ -81,18 +81,40 @@ def detect_best_device() -> tuple:
     """Return (device, compute_type) for faster-whisper / CTranslate2.
 
     Priority: NVIDIA CUDA > Intel Arc (OpenVINO) > CPU
+
+    Each candidate is validated with ctranslate2.get_supported_compute_types()
+    before being returned.  This avoids hard C-level crashes that occur when
+    CTranslate2 attempts to initialise a backend whose native plugin cannot
+    load (e.g. OpenVINO on a machine with an Arc GPU but an unsupported driver).
     """
+    try:
+        import ctranslate2 as ct2
+    except ImportError:
+        ct2 = None
+
+    def _ct2_supports(device: str) -> bool:
+        """Return True if ctranslate2 reports at least one usable compute type
+        for *device*.  Falls back to True when ctranslate2 is not importable
+        so that the caller can still attempt the device and catch any error."""
+        if ct2 is None:
+            return True
+        try:
+            return len(ct2.get_supported_compute_types(device)) > 0
+        except Exception:
+            return False
+
     # 1. NVIDIA CUDA
     out = _run(["nvidia-smi"])
     if out and re.search(r"CUDA\s+Version\s*:\s*(\d+)", out):
-        return ("cuda", "float16")
+        if _ct2_supports("cuda"):
+            return ("cuda", "float16")
 
     # 2. Intel Arc / Intel GPU via OpenVINO
     try:
         import openvino as ov
         core = ov.Core()
         gpu_devices = [d for d in core.available_devices if d.startswith("GPU")]
-        if gpu_devices:
+        if gpu_devices and _ct2_supports("openvino"):
             return ("openvino", "int8")
     except Exception:
         pass
@@ -205,13 +227,14 @@ class TranscribeWorker(QThread):
             )
         except Exception as exc:
             msg = str(exc)
-            # Graceful fallback: if GPU device is unavailable, retry on CPU
-            if device in ("cuda", "openvino") and any(
-                kw in msg.lower()
-                for kw in ("cuda", "openvino", "device", "gpu", "driver")
-            ):
+            # Unconditional fallback: if the GPU-backed model load fails for
+            # any reason (driver mismatch, plugin not found, unsupported op, …)
+            # retry on CPU.  We do not keyword-filter the error because native
+            # crashes from CTranslate2 backends can surface as generic Python
+            # RuntimeErrors that don't mention "cuda" or "openvino".
+            if device in ("cuda", "openvino"):
                 self.log_message.emit(
-                    f"  {device_label} unavailable ({msg})\n"
+                    f"  {device_label} failed: {msg}\n"
                     "  Falling back to CPU ..."
                 )
                 try:
@@ -222,7 +245,10 @@ class TranscribeWorker(QThread):
                     device, compute_type = "cpu", "int8"
                     self.log_message.emit("  CPU fallback succeeded.")
                 except Exception as exc2:
-                    self.fatal_error.emit(f"Failed to load model on CPU:\n\n{exc2}")
+                    self.fatal_error.emit(
+                        f"GPU device ({device_label}) failed:\n  {msg}\n\n"
+                        f"CPU fallback also failed:\n  {exc2}"
+                    )
                     self.all_done.emit()
                     return
             else:
