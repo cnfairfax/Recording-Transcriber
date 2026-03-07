@@ -1,0 +1,8 @@
+# Use CPU-only PyTorch to avoid CUDA DLL dependency on machines without a GPU.
+# Remove the --extra-index-url line and change torch to just "torch" if you
+# want CUDA support and have the matching drivers installed.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+PyQt6>=6.4.0
+torch>=2.0.0+cpu
+openai-whisper>=20231117
