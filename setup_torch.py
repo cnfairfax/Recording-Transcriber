@@ -1,23 +1,45 @@
 """
 setup_torch.py
 --------------
-Detects whether a CUDA-capable NVIDIA GPU is present and installs the
-matching PyTorch build into the current Python environment.
+Detects the best available GPU (NVIDIA CUDA, Intel Arc XPU, or none) and
+installs the matching PyTorch build into the current Python environment.
+
+Priority: NVIDIA CUDA > Intel Arc / Intel GPU (XPU) > CPU
 
 Usage:
-    python setup_torch.py          # auto-detect GPU
-    python setup_torch.py --cpu    # force CPU-only build
-    python setup_torch.py --cuda   # force CUDA build (auto-picks version)
-    python setup_torch.py --check  # only print what would be installed, don't install
+    python setup_torch.py           # auto-detect GPU
+    python setup_torch.py --cpu     # force CPU-only build
+    python setup_torch.py --cuda    # force NVIDIA CUDA build (auto-picks version)
+    python setup_torch.py --xpu     # force Intel XPU build (Arc / Data Center GPU)
+    python setup_torch.py --check   # print what would be installed without installing
+    python setup_torch.py --force   # re-install even if torch already works
+
+Notes:
+  • Intel Arc support uses PyTorch native XPU backend (torch.xpu), available
+    from PyTorch 2.5+.  Intel Extension for PyTorch (IPEX) reached EOL in
+    March 2026 and is not used here.
+  • For Intel XPU to work the Intel GPU driver must be installed first:
+    https://www.intel.com/content/www/us/en/developer/articles/tool/pytorch-prerequisites-for-intel-gpu.html
 """
 
 from __future__ import annotations
 
 import argparse
+import enum
 import re
 import subprocess
 import sys
 from typing import Optional
+
+
+# ---------------------------------------------------------------------------
+# GPU backend enum
+# ---------------------------------------------------------------------------
+
+class GpuBackend(enum.Enum):
+    NVIDIA_CUDA = "nvidia_cuda"
+    INTEL_XPU   = "intel_xpu"
+    CPU         = "cpu"
 
 
 # ---------------------------------------------------------------------------
@@ -33,11 +55,12 @@ CUDA_WHEEL_TAGS: list[tuple[tuple[int, int], str]] = [
 ]
 
 PYTORCH_INDEX_BASE = "https://download.pytorch.org/whl"
-CPU_INDEX = f"{PYTORCH_INDEX_BASE}/cpu"
+CPU_INDEX  = f"{PYTORCH_INDEX_BASE}/cpu"
+XPU_INDEX  = f"{PYTORCH_INDEX_BASE}/xpu"  # Intel Arc / Data Center GPU (XPU)
 
 
 # ---------------------------------------------------------------------------
-# GPU / CUDA detection
+# GPU / hardware detection helpers
 # ---------------------------------------------------------------------------
 
 def _run(cmd: list[str]) -> Optional[str]:
@@ -53,6 +76,10 @@ def _run(cmd: list[str]) -> Optional[str]:
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return None
 
+
+# ------------------------------------------------------------------
+# NVIDIA CUDA
+# ------------------------------------------------------------------
 
 def detect_cuda_version() -> Optional[tuple[int, int]]:
     """Return (major, minor) of the CUDA version supported by the driver, or None."""
@@ -85,8 +112,141 @@ def pick_cuda_tag(version: tuple[int, int]) -> Optional[str]:
     return None  # older than cu118 – fall back to CPU
 
 
+# ------------------------------------------------------------------
+# Intel Arc / Intel GPU (XPU)
+# ------------------------------------------------------------------
+
+# Strings we look for in the GPU adapter name to identify Intel discrete GPUs.
+_INTEL_GPU_PATTERNS = re.compile(
+    r"Intel.*Arc"
+    r"|Intel.*Data\s*Center.*GPU"
+    r"|Intel.*Ponte\s*Vecchio"
+    r"|Intel.*Alchemist"
+    r"|Intel.*Battlemage",
+    re.IGNORECASE,
+)
+
+
+def _gpu_names() -> list[str]:
+    """Return a list of GPU/display adapter names visible to the OS."""
+    names: list[str] = []
+
+    # Windows – WMI via PowerShell (no extra tools needed)
+    if sys.platform == "win32":
+        out = _run([
+            "powershell", "-NoProfile", "-Command",
+            "Get-WmiObject Win32_VideoController | Select-Object -ExpandProperty Name",
+        ])
+        if out:
+            names.extend(line.strip() for line in out.splitlines() if line.strip())
+        if not names:
+            # Fallback: wmic
+            out = _run(["wmic", "path", "win32_VideoController", "get", "name"])
+            if out:
+                names.extend(
+                    line.strip()
+                    for line in out.splitlines()
+                    if line.strip() and line.strip().lower() != "name"
+                )
+    else:
+        # Linux – lspci or /sys
+        out = _run(["lspci"])
+        if out:
+            for line in out.splitlines():
+                if re.search(r"VGA|3D|Display", line, re.IGNORECASE):
+                    names.append(line)
+        # macOS – system_profiler
+        if not names:
+            out = _run(["system_profiler", "SPDisplaysDataType"])
+            if out:
+                for line in out.splitlines():
+                    m = re.search(r"Chipset Model:\s*(.+)", line)
+                    if m:
+                        names.append(m.group(1).strip())
+
+    return names
+
+
+def detect_intel_arc() -> Optional[str]:
+    """Return the adapter name if an Intel Arc / XPU-capable GPU is found, else None."""
+    for name in _gpu_names():
+        if _INTEL_GPU_PATTERNS.search(name):
+            return name
+    return None
+
+
+# ------------------------------------------------------------------
+# Combined GPU detection
+# ------------------------------------------------------------------
+
+class DetectionResult:
+    def __init__(self, backend: GpuBackend, label: str, index_url: str) -> None:
+        self.backend    = backend
+        self.label      = label
+        self.index_url  = index_url
+
+
+def detect_best_backend(*, force_cpu: bool, force_cuda: bool, force_xpu: bool) -> DetectionResult:
+    """Probe GPUs and return the DetectionResult for the best available backend."""
+
+    if force_cpu:
+        print("ℹ  GPU detection skipped (--cpu)")
+        return DetectionResult(GpuBackend.CPU, "CPU", CPU_INDEX)
+
+    if force_xpu:
+        print("ℹ  Skipping NVIDIA probe, using Intel XPU build (--xpu)")
+        return DetectionResult(GpuBackend.INTEL_XPU, "Intel XPU", XPU_INDEX)
+
+    if force_cuda:
+        print("ℹ  Skipping Intel probe, using CUDA build (--cuda)")
+        cuda_ver = detect_cuda_version()
+        if cuda_ver is None:
+            print("⚠  Could not detect CUDA driver version. Falling back to CPU.")
+            return DetectionResult(GpuBackend.CPU, "CPU", CPU_INDEX)
+        tag = pick_cuda_tag(cuda_ver)
+        if tag is None:
+            print(f"⚠  CUDA {cuda_ver} < minimum supported (11.8). Falling back to CPU.")
+            return DetectionResult(GpuBackend.CPU, "CPU", CPU_INDEX)
+        return DetectionResult(
+            GpuBackend.NVIDIA_CUDA,
+            f"NVIDIA CUDA ({tag})",
+            f"{PYTORCH_INDEX_BASE}/{tag}",
+        )
+
+    # --- Auto-detect: NVIDIA first, then Intel, then CPU ---
+    print("Detecting GPU …")
+
+    gpu_names = _gpu_names()
+    if gpu_names:
+        print("  Found display adapters:")
+        for name in gpu_names:
+            print(f"    • {name}")
+
+    # NVIDIA
+    cuda_ver = detect_cuda_version()
+    if cuda_ver:
+        print(f"  NVIDIA GPU detected – driver CUDA {cuda_ver[0]}.{cuda_ver[1]}")
+        tag = pick_cuda_tag(cuda_ver)
+        if tag:
+            return DetectionResult(
+                GpuBackend.NVIDIA_CUDA,
+                f"NVIDIA CUDA ({tag})",
+                f"{PYTORCH_INDEX_BASE}/{tag}",
+            )
+        print(f"  CUDA {cuda_ver} older than minimum (11.8) – checking Intel next.")
+
+    # Intel Arc
+    intel_name = detect_intel_arc()
+    if intel_name:
+        print(f"  Intel GPU detected: {intel_name}")
+        return DetectionResult(GpuBackend.INTEL_XPU, f"Intel XPU  ({intel_name})", XPU_INDEX)
+
+    print("  No CUDA or Intel Arc GPU detected – using CPU build.")
+    return DetectionResult(GpuBackend.CPU, "CPU", CPU_INDEX)
+
+
 # ---------------------------------------------------------------------------
-# Torch installation
+# Torch installation helpers
 # ---------------------------------------------------------------------------
 
 def _current_torch_info() -> Optional[str]:
@@ -122,10 +282,24 @@ def install_torch(index_url: str, force: bool = False) -> bool:
         return False
 
 
-def verify_torch() -> bool:
-    """Return True if torch imports successfully in a fresh sub-process."""
-    output = _current_torch_info()
-    return output is not None
+def verify_torch(backend: GpuBackend) -> bool:
+    """Return True if torch imports and the expected device is available."""
+    if backend == GpuBackend.NVIDIA_CUDA:
+        check = "import torch; assert torch.cuda.is_available(), 'cuda not available'"
+    elif backend == GpuBackend.INTEL_XPU:
+        check = "import torch; assert torch.xpu.is_available(), 'xpu not available'"
+    else:
+        check = "import torch; import whisper"
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", check],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -133,10 +307,15 @@ def verify_torch() -> bool:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Install the correct PyTorch build.")
+    parser = argparse.ArgumentParser(
+        description="Detect GPU and install the correct PyTorch build.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="GPU priority: NVIDIA CUDA > Intel Arc XPU > CPU",
+    )
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--cpu",   action="store_true", help="Force CPU-only build")
-    group.add_argument("--cuda",  action="store_true", help="Force CUDA build (auto-picks version)")
+    group.add_argument("--cpu",  action="store_true", help="Force CPU-only build")
+    group.add_argument("--cuda", action="store_true", help="Force NVIDIA CUDA build")
+    group.add_argument("--xpu",  action="store_true", help="Force Intel XPU build (Arc / Data Center)")
     parser.add_argument("--check", action="store_true", help="Print what would be installed without installing")
     parser.add_argument("--force", action="store_true", help="Re-install even if torch is already working")
     args = parser.parse_args()
@@ -150,50 +329,33 @@ def main() -> int:
         if args.check:
             print("  (--check mode: nothing to do)")
             return 0
-        # Still let the user force a specific flavour
-        if not args.cpu and not args.cuda:
-            print("  Run with --force to re-install, or --cpu / --cuda to switch build.\n")
+        if not (args.cpu or args.cuda or args.xpu):
+            print("  Run with --force to re-install, or --cpu / --cuda / --xpu to switch build.\n")
             return 0
 
-    # --- Detect GPU -----------------------------------------------------------
-    if args.cpu:
-        cuda_ver = None
-        print("ℹ GPU detection skipped (--cpu flag)")
-    elif args.cuda:
-        cuda_ver = detect_cuda_version()
-        if cuda_ver is None:
-            print("⚠ Could not detect a CUDA-capable GPU. Falling back to CPU build.")
-    else:
-        print("Detecting GPU …")
-        cuda_ver = detect_cuda_version()
-        if cuda_ver:
-            print(f"  Found NVIDIA GPU with driver CUDA {cuda_ver[0]}.{cuda_ver[1]}")
-        else:
-            print("  No CUDA-capable GPU detected.")
+    # --- Detect best backend --------------------------------------------------
+    detection = detect_best_backend(
+        force_cpu=args.cpu,
+        force_cuda=args.cuda,
+        force_xpu=args.xpu,
+    )
 
-    # --- Pick wheel index -----------------------------------------------------
-    if cuda_ver:
-        cuda_tag = pick_cuda_tag(cuda_ver)
-        if cuda_tag:
-            index_url = f"{PYTORCH_INDEX_BASE}/{cuda_tag}"
-            build_label = f"CUDA ({cuda_tag})"
-        else:
-            print(f"  CUDA {cuda_ver} is older than the minimum supported (11.8). Using CPU build.")
-            index_url = CPU_INDEX
-            build_label = "CPU"
-    else:
-        index_url = CPU_INDEX
-        build_label = "CPU"
+    print(f"\nSelected PyTorch build : {detection.label}")
+    print(f"Wheel index URL        : {detection.index_url}")
 
-    print(f"\nSelected PyTorch build : {build_label}")
-    print(f"Wheel index URL        : {index_url}")
+    if detection.backend == GpuBackend.INTEL_XPU:
+        print(
+            "\n  Note: Intel XPU requires the Intel GPU driver to be installed.\n"
+            "  Driver guide: https://www.intel.com/content/www/us/en/developer/"
+            "articles/tool/pytorch-prerequisites-for-intel-gpu.html"
+        )
 
     if args.check:
         print("\n(--check mode: not installing)")
         return 0
 
     # --- Install --------------------------------------------------------------
-    success = install_torch(index_url, force=True)
+    success = install_torch(detection.index_url, force=True)
 
     if not success:
         print("\n✗ Installation failed. Check pip output above.")
@@ -201,14 +363,28 @@ def main() -> int:
 
     # --- Verify ---------------------------------------------------------------
     print("\nVerifying installation …")
-    if verify_torch():
+    if verify_torch(detection.backend):
         ver = _current_torch_info()
         print(f"✓ PyTorch installed successfully: {ver}")
+        if detection.backend == GpuBackend.INTEL_XPU:
+            print("  torch.xpu.is_available() = True")
+        elif detection.backend == GpuBackend.NVIDIA_CUDA:
+            print("  torch.cuda.is_available() = True")
         return 0
     else:
-        print("✗ PyTorch installed but still fails to import.")
-        print("  On Windows, try installing the Visual C++ Redistributable:")
-        print("  https://aka.ms/vs/17/release/vc_redist.x64.exe")
+        print("\n✗ PyTorch installed but device check failed.")
+        if detection.backend == GpuBackend.INTEL_XPU:
+            print("  torch.xpu.is_available() returned False.")
+            print("  Make sure the Intel GPU driver is installed and up to date.")
+            print("  Driver guide: https://www.intel.com/content/www/us/en/developer/"
+                  "articles/tool/pytorch-prerequisites-for-intel-gpu.html")
+        elif detection.backend == GpuBackend.NVIDIA_CUDA:
+            print("  torch.cuda.is_available() returned False.")
+            print("  On Windows, ensure the Visual C++ Redistributable is installed:")
+            print("  https://aka.ms/vs/17/release/vc_redist.x64.exe")
+        else:
+            print("  On Windows, ensure the Visual C++ Redistributable is installed:")
+            print("  https://aka.ms/vs/17/release/vc_redist.x64.exe")
         return 1
 
 

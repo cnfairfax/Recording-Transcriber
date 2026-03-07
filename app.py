@@ -48,10 +48,14 @@ class SetupThread(QThread):
     finished_ok  = pyqtSignal()
     finished_err = pyqtSignal(str)
 
+    def __init__(self, parent=None, extra_args: list[str] | None = None) -> None:
+        super().__init__(parent)
+        self._extra_args = extra_args or []
+
     def run(self) -> None:
         try:
             proc = subprocess.Popen(
-                [sys.executable, "setup_torch.py"],
+                [sys.executable, "setup_torch.py"] + self._extra_args,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -130,8 +134,10 @@ class TorchSetupDialog(QDialog):
 
         info = QLabel(
             "<b>PyTorch (required for Whisper) could not be loaded.</b><br><br>"
-            "This is usually caused by a CUDA/DLL version mismatch.<br>"
-            "Click <b>Auto-Fix</b> to detect your GPU and install the correct build."
+            "This is usually caused by a CUDA/DLL version mismatch or a missing driver.<br><br>"
+            "<b>Auto-Fix Now</b> — detects NVIDIA CUDA, Intel Arc (XPU), or falls back to CPU<br>"
+            "<b>Force CPU</b> — install CPU-only build (always works, no GPU needed)<br>"
+            "<b>Intel Arc (XPU)</b> — install Intel XPU build (requires Intel GPU driver)"
         )
         info.setWordWrap(True)
         layout.addWidget(info)
@@ -156,10 +162,22 @@ class TorchSetupDialog(QDialog):
 
         self._fix_btn = QPushButton("Auto-Fix Now")
         self._fix_btn.setObjectName("fixBtn")
+        self._fix_btn.setToolTip("Detect GPU and install the correct PyTorch build")
         self._fix_btn.clicked.connect(self._start_fix)
         btn_row.addWidget(self._fix_btn)
 
-        self._skip_btn = QPushButton("Skip (launch anyway)")
+        self._cpu_btn = QPushButton("Force CPU")
+        self._cpu_btn.setToolTip("Install CPU-only PyTorch (no GPU)")
+        self._cpu_btn.clicked.connect(lambda: self._start_fix(extra_args=["--cpu"]))
+        btn_row.addWidget(self._cpu_btn)
+
+        self._xpu_btn = QPushButton("Intel Arc (XPU)")
+        self._xpu_btn.setToolTip("Install Intel Arc / XPU PyTorch build")
+        self._xpu_btn.clicked.connect(lambda: self._start_fix(extra_args=["--xpu"]))
+        btn_row.addWidget(self._xpu_btn)
+
+        self._skip_btn = QPushButton("Skip")
+        self._skip_btn.setToolTip("Launch the app anyway (may not work)")
         self._skip_btn.clicked.connect(self.accept)
         btn_row.addWidget(self._skip_btn)
 
@@ -169,13 +187,17 @@ class TorchSetupDialog(QDialog):
 
         layout.addLayout(btn_row)
 
-    def _start_fix(self) -> None:
-        self._fix_btn.setEnabled(False)
-        self._skip_btn.setEnabled(False)
+    def _set_buttons_enabled(self, enabled: bool) -> None:
+        for btn in (self._fix_btn, self._cpu_btn, self._xpu_btn,
+                    self._skip_btn, self._quit_btn):
+            btn.setEnabled(enabled)
+
+    def _start_fix(self, extra_args: list[str] | None = None) -> None:
+        self._set_buttons_enabled(False)
         self._progress.show()
         self._log.setPlainText("")
 
-        self._thread = SetupThread(self)
+        self._thread = SetupThread(self, extra_args=extra_args or [])
         self._thread.output_line.connect(self._on_line)
         self._thread.finished_ok.connect(self._on_ok)
         self._thread.finished_err.connect(self._on_err)
@@ -199,9 +221,8 @@ class TorchSetupDialog(QDialog):
 
     def _on_err(self, msg: str) -> None:
         self._progress.hide()
-        self._fix_btn.setEnabled(True)
-        self._skip_btn.setEnabled(True)
-        self._log.appendPlainText(f"\n✗ Error: {msg}")
+        self._set_buttons_enabled(True)
+        self._log.appendPlainText(f"\n\u2717 Error: {msg}")
         self._log.appendPlainText(
             "\nIf the problem persists, try installing the Visual C++ Redistributable:\n"
             "  https://aka.ms/vs/17/release/vc_redist.x64.exe\n"

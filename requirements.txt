@@ -1,16 +1,20 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # PyTorch / Whisper note
 # ──────────────────────────────────────────────────────────────────────────────
-# The correct PyTorch build depends on whether you have an NVIDIA GPU:
+# The correct PyTorch build depends on your GPU.
+# Let setup_torch.py auto-detect and install the right build:
 #
-#   • No GPU (CPU-only):
-#       pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   python setup_torch.py            # auto-detect (NVIDIA > Intel Arc > CPU)
+#   python setup_torch.py --cpu      # force CPU-only
+#   python setup_torch.py --cuda     # force NVIDIA CUDA
+#   python setup_torch.py --xpu      # force Intel Arc / Intel Data Center GPU
 #
-#   • NVIDIA GPU (CUDA 12.x):
-#       pip install torch --index-url https://download.pytorch.org/whl/cu126
-#
-#   • Let the app detect and install automatically:
-#       python setup_torch.py
+# Manual installs:
+#   CPU-only:       pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   NVIDIA CUDA:    pip install torch --index-url https://download.pytorch.org/whl/cu126
+#   Intel Arc XPU:  pip install torch --index-url https://download.pytorch.org/whl/xpu
+#                   (requires Intel GPU driver: https://www.intel.com/content/www/us/en/
+#                    developer/articles/tool/pytorch-prerequisites-for-intel-gpu.html)
 #
 # This requirements.txt defaults to the safe CPU-only build.
 # ──────────────────────────────────────────────────────────────────────────────

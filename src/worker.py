@@ -102,6 +102,24 @@ class TranscribeWorker(QThread):
                 f.write(_to_vtt(result["segments"]))
 
     # ------------------------------------------------------------------
+    # Device detection
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _best_device(torch) -> str:
+        """Return the best available torch device string.
+
+        Priority: NVIDIA CUDA > Intel Arc XPU > CPU
+        `torch` is passed in (already imported) to avoid a double import.
+        """
+        if torch.cuda.is_available():
+            return "cuda"
+        # torch.xpu is the native Intel GPU backend (PyTorch 2.5+, Arc / Data Center)
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
+            return "xpu"
+        return "cpu"
+
+    # ------------------------------------------------------------------
     # Thread entry point
     # ------------------------------------------------------------------
 
@@ -139,9 +157,13 @@ class TranscribeWorker(QThread):
             self.all_done.emit()
             return
 
+        device = self._best_device(torch)
+        device_labels = {"cuda": "NVIDIA GPU (CUDA)", "xpu": "Intel GPU (XPU)", "cpu": "CPU"}
+        self.log_message.emit(f"Compute device: {device_labels.get(device, device)}")
+
         self.log_message.emit(f"Loading Whisper model '{self.model_name}' …")
         try:
-            model = whisper.load_model(self.model_name)
+            model = whisper.load_model(self.model_name, device=device)
         except Exception as exc:
             self.log_message.emit(f"ERROR – failed to load model: {exc}")
             self.all_done.emit()
