@@ -1,25 +1,16 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# PyTorch / Whisper note
+# Recording Transcriber – dependencies
 # ──────────────────────────────────────────────────────────────────────────────
-# The correct PyTorch build depends on your GPU.
-# Let setup_torch.py auto-detect and install the right build:
+# Backend: faster-whisper (CTranslate2) – no PyTorch required.
+# GPU acceleration is handled automatically at runtime:
+#   NVIDIA CUDA  → detected via nvidia-smi, used natively by CTranslate2
+#   Intel Arc    → uses OpenVINO (bundled in the openvino package below)
+#   CPU fallback → always available
 #
-#   python setup_torch.py            # auto-detect (NVIDIA > Intel Arc > CPU)
-#   python setup_torch.py --cpu      # force CPU-only
-#   python setup_torch.py --cuda     # force NVIDIA CUDA
-#   python setup_torch.py --xpu      # force Intel Arc / Intel Data Center GPU
-#
-# Manual installs:
-#   CPU-only:       pip install torch --index-url https://download.pytorch.org/whl/cpu
-#   NVIDIA CUDA:    pip install torch --index-url https://download.pytorch.org/whl/cu126
-#   Intel Arc XPU:  pip install torch --index-url https://download.pytorch.org/whl/xpu
-#                   (requires Intel GPU driver: https://www.intel.com/content/www/us/en/
-#                    developer/articles/tool/pytorch-prerequisites-for-intel-gpu.html)
-#
-# This requirements.txt defaults to the safe CPU-only build.
+# To verify or fix your environment run:
+#   python setup_env.py
 # ──────────────────────────────────────────────────────────────────────────────
---extra-index-url https://download.pytorch.org/whl/cpu
 
 PyQt6>=6.4.0
-torch>=2.0.0+cpu
-openai-whisper>=20231117
+faster-whisper>=1.0.0
+openvino>=2024.0.0

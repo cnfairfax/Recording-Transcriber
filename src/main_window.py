@@ -386,8 +386,11 @@ class MainWindow(QMainWindow):
         model_box = QGroupBox("Whisper Model")
         model_layout = QVBoxLayout(model_box)
         self._model_combo = QComboBox()
-        self._model_combo.addItems(["tiny", "base", "small", "medium", "large"])
-        self._model_combo.setCurrentText("large")
+        self._model_combo.addItems(
+            ["tiny", "base", "small", "medium",
+             "large", "large-v2", "large-v3"]
+        )
+        self._model_combo.setCurrentText("large-v3")
         model_layout.addWidget(self._model_combo)
         settings_row.addWidget(model_box)
 
@@ -632,6 +635,7 @@ class MainWindow(QMainWindow):
         self._worker.file_done.connect(self._on_file_done)
         self._worker.file_error.connect(self._on_file_error)
         self._worker.log_message.connect(self._log)
+        self._worker.fatal_error.connect(self._on_fatal_error)
         self._worker.all_done.connect(self._on_all_done)
 
         self._transcribe_btn.setEnabled(False)
@@ -650,6 +654,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Worker signal handlers
     # ------------------------------------------------------------------
+
+    @pyqtSlot(str)
+    def _on_fatal_error(self, message: str) -> None:
+        """Show unrecoverable transcription errors prominently as a dialog."""
+        self._transcribe_btn.setEnabled(True)
+        self._cancel_btn.setEnabled(False)
+        self._status_label.setText("Error – see details")
+        self._log(f"FATAL: {message}")
+        QMessageBox.critical(self, "Transcription Error", message)
 
     @pyqtSlot(str)
     def _on_file_started(self, path: str) -> None:
