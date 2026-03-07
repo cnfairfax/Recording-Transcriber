@@ -14,3 +14,6 @@
 PyQt6>=6.4.0
 faster-whisper>=1.0.0
 openvino>=2024.0.0
+
+# Build tooling (only needed to produce the installer, not to run the app)
+pyinstaller>=6.0.0

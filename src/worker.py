@@ -17,6 +17,8 @@ from typing import List, Set
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from src.model_manager import MODELS, model_download_root
+
 
 # ---------------------------------------------------------------------------
 # Subtitle formatting helpers
@@ -57,12 +59,10 @@ def _to_vtt(segments: list) -> str:
 
 
 def _model_size_hint(model_name: str) -> str:
-    sizes = {
-        "tiny": "~150 MB", "base": "~280 MB", "small": "~490 MB",
-        "medium": "~1.5 GB", "large": "~3 GB",
-        "large-v2": "~3 GB", "large-v3": "~3 GB",
-    }
-    return sizes.get(model_name, "unknown size")
+    for name, size, _ in MODELS:
+        if name == model_name:
+            return size
+    return "unknown size"
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +201,7 @@ class TranscribeWorker(QThread):
                 self.model_name,
                 device=device,
                 compute_type=compute_type,
+                download_root=model_download_root(),
             )
         except Exception as exc:
             msg = str(exc)
@@ -215,7 +216,8 @@ class TranscribeWorker(QThread):
                 )
                 try:
                     model = WhisperModel(
-                        self.model_name, device="cpu", compute_type="int8"
+                        self.model_name, device="cpu", compute_type="int8",
+                        download_root=model_download_root(),
                     )
                     device, compute_type = "cpu", "int8"
                     self.log_message.emit("  CPU fallback succeeded.")
