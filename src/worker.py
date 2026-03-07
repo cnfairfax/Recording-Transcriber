@@ -106,7 +106,38 @@ class TranscribeWorker(QThread):
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        import whisper  # imported here so the UI loads without whisper installed
+        # ── Import torch / whisper with a descriptive error if DLLs fail ──
+        try:
+            import torch  # noqa: F401  (validates DLL load before whisper)
+        except OSError as exc:
+            err = str(exc)
+            if "1114" in err or "dll" in err.lower() or "initialization" in err.lower():
+                msg = (
+                    "PyTorch failed to load (DLL initialization error).\n\n"
+                    "This usually means the installed PyTorch build doesn't match your\n"
+                    "GPU drivers (or the Visual C++ Redistributable is missing).\n\n"
+                    "Fix: run  python setup_torch.py  to auto-detect and install the\n"
+                    "correct build, then restart the app."
+                )
+            else:
+                msg = f"PyTorch import error: {exc}"
+            self.log_message.emit(msg)
+            self.all_done.emit()
+            return
+        except Exception as exc:
+            self.log_message.emit(f"PyTorch import error: {exc}")
+            self.all_done.emit()
+            return
+
+        try:
+            import whisper
+        except Exception as exc:
+            self.log_message.emit(
+                f"Whisper import error: {exc}\n"
+                "Ensure openai-whisper is installed:  pip install openai-whisper"
+            )
+            self.all_done.emit()
+            return
 
         self.log_message.emit(f"Loading Whisper model '{self.model_name}' …")
         try:

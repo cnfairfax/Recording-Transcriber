@@ -1,6 +1,19 @@
-# Use CPU-only PyTorch to avoid CUDA DLL dependency on machines without a GPU.
-# Remove the --extra-index-url line and change torch to just "torch" if you
-# want CUDA support and have the matching drivers installed.
+# ──────────────────────────────────────────────────────────────────────────────
+# PyTorch / Whisper note
+# ──────────────────────────────────────────────────────────────────────────────
+# The correct PyTorch build depends on whether you have an NVIDIA GPU:
+#
+#   • No GPU (CPU-only):
+#       pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+#   • NVIDIA GPU (CUDA 12.x):
+#       pip install torch --index-url https://download.pytorch.org/whl/cu126
+#
+#   • Let the app detect and install automatically:
+#       python setup_torch.py
+#
+# This requirements.txt defaults to the safe CPU-only build.
+# ──────────────────────────────────────────────────────────────────────────────
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 PyQt6>=6.4.0
