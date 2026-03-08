@@ -65,6 +65,17 @@ STATUS_COLOR: Dict[str, str] = {
     "error":        "#ff5c5c",
 }
 
+# SVG data URI for the white checkmark rendered inside a checked QCheckBox
+# indicator.  Extracted as a constant so it can be updated without hunting
+# through the stylesheet string.
+_CHECKMARK_SVG_URI = (
+    "data:image/svg+xml;utf8,"
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
+    "<path d='M3.5 8.5 L6.5 11.5 L12.5 4.5' stroke='white' stroke-width='2.5'"
+    " fill='none' stroke-linecap='round' stroke-linejoin='round'/>"
+    "</svg>"
+)
+
 STYLESHEET = """
 QMainWindow, QWidget {
     background-color: #1e1e2e;
@@ -212,7 +223,7 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background-color: #89b4fa;
     border-color: #89b4fa;
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3.5 8.5 L6.5 11.5 L12.5 4.5' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    image: url("_CHECKMARK_SVG_URI_");
 }
 
 QSplitter::handle {
@@ -224,7 +235,7 @@ QStatusBar {
     color: #6c7086;
     border-top: 1px solid #313244;
 }
-"""
+""".replace("_CHECKMARK_SVG_URI_", _CHECKMARK_SVG_URI)
 
 
 # ---------------------------------------------------------------------------

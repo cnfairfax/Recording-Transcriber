@@ -38,7 +38,7 @@ def test_stylesheet_contains_image_property():
 # ---------------------------------------------------------------------------
 
 def test_checkmark_references_white_stroke():
-    """The SVG data URI inside STYLESHEET must contain stroke='white' or stroke=\"white\"."""
+    """The SVG data URI inside STYLESHEET must reference a white stroke for the checkmark path."""
     has_white_stroke = (
         "stroke='white'" in STYLESHEET or 'stroke="white"' in STYLESHEET
     )
