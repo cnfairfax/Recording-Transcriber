@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Dict, Set
@@ -31,7 +32,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from src.log_setup import safe_slot
 from src.worker import TranscribeWorker
+
+log = logging.getLogger("transcriber")
 
 # ---------------------------------------------------------------------------
 # Supported media extensions
@@ -656,6 +660,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     @pyqtSlot(str)
+    @safe_slot
     def _on_fatal_error(self, message: str) -> None:
         """Show unrecoverable transcription errors prominently as a dialog."""
         self._transcribe_btn.setEnabled(True)
@@ -665,10 +670,12 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "Transcription Error", message)
 
     @pyqtSlot(str)
+    @safe_slot
     def _on_file_started(self, path: str) -> None:
         self._update_item_status(path, "transcribing")
 
     @pyqtSlot(str)
+    @safe_slot
     def _on_file_done(self, path: str) -> None:
         self._update_item_status(path, "done")
         done = sum(1 for s in self._file_statuses.values() if s == "done")
@@ -677,10 +684,12 @@ class MainWindow(QMainWindow):
         self._status_label.setText(f"Transcribing {done} / {total_in_run} …")
 
     @pyqtSlot(str, str)
+    @safe_slot
     def _on_file_error(self, path: str, error: str) -> None:
         self._update_item_status(path, "error")
 
     @pyqtSlot(str)
+    @safe_slot
     def _log(self, message: str) -> None:
         self._log_box.appendPlainText(message)
         self._log_box.verticalScrollBar().setValue(
@@ -688,6 +697,7 @@ class MainWindow(QMainWindow):
         )
 
     @pyqtSlot()
+    @safe_slot
     def _on_all_done(self) -> None:
         self._transcribe_btn.setEnabled(True)
         self._cancel_btn.setEnabled(False)
