@@ -4,7 +4,7 @@ Verifies that:
 1. _on_file_progress updates the progress bar value to int(round(percent)).
 2. _on_file_progress keeps the progress bar in determinate 0-100 mode.
 3. _on_file_progress updates the status label to include the percentage.
-4. _on_file_done resets the progress bar to 0 for the next file.
+4. _on_file_done snaps the progress bar to 100 on completion.
 5. _on_file_started resets the progress bar to 0 in 0-100 range.
 """
 
@@ -27,6 +27,7 @@ def _make_window(qtbot) -> MainWindow:
     qtbot.addWidget(window)
     # Pre-set progress state so tests don't depend on _start_transcription
     window._progress_bar_total = 3
+    window._run_files = ["a.wav", "b.wav", "c.wav"]
     window._file_statuses = {
         "a.wav": "transcribing",
         "b.wav": "queued",
@@ -86,11 +87,11 @@ def test_file_progress_status_label_contains_percent(qtbot):
 
 
 # ---------------------------------------------------------------------------
-# Test 4 — _on_file_done resets progress bar to 0 for the next file
+# Test 4 — _on_file_done snaps the progress bar to 100 on completion
 # ---------------------------------------------------------------------------
 
-def test_file_done_resets_progress_bar(qtbot):
-    """After _on_file_done('a.wav'), progress_bar.value() == 0 (reset for next file)."""
+def test_file_done_snaps_progress_bar_to_100(qtbot):
+    """After _on_file_done('a.wav'), progress_bar.value() == 100 (snap for completion)."""
     window = _make_window(qtbot)
     # Simulate bar mid-progress before the file finishes
     window._progress_bar.setValue(75)
@@ -101,8 +102,8 @@ def test_file_done_resets_progress_bar(qtbot):
     window._file_list.addItem(item)
 
     window._on_file_done("a.wav")
-    assert window._progress_bar.value() == 0, (
-        f"Expected progress_bar.value() == 0 after file done, "
+    assert window._progress_bar.value() == 100, (
+        f"Expected progress_bar.value() == 100 after file done (snap), "
         f"got {window._progress_bar.value()}"
     )
 

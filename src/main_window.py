@@ -368,6 +368,7 @@ class MainWindow(QMainWindow):
         self._file_statuses: Dict[str, str] = {}   # path -> status
         self._worker: TranscribeWorker | None = None
         self._progress_bar_total: int = 0           # number of files in the current run
+        self._run_files: list[str] = []             # ordered file list for the current run
 
         self._build_ui()
         self.setStyleSheet(STYLESHEET.replace("_CHECK_ICON_PATH_", _create_check_icon()))
@@ -682,6 +683,7 @@ class MainWindow(QMainWindow):
         self._transcribe_btn.setEnabled(False)
         self._cancel_btn.setEnabled(True)
         self._progress_bar_total = len(queued_files)
+        self._run_files = list(queued_files)
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
         self._status_label.setText(f"Transcribing 0 / {len(queued_files)} …")
@@ -720,8 +722,8 @@ class MainWindow(QMainWindow):
         self._update_item_status(path, "done")
         # Snap to 100% to signal completion; _on_file_started will reset for the next file
         self._progress_bar.setValue(100)
-        done = sum(1 for s in self._file_statuses.values() if s == "done")
-        total = self._progress_bar_total
+        done = sum(1 for p in self._run_files if self._file_statuses.get(p) == "done")
+        total = len(self._run_files)
         self._status_label.setText(f"Transcribing {done} / {total} …")
 
     @pyqtSlot(str, float)
@@ -736,10 +738,13 @@ class MainWindow(QMainWindow):
         """
         bar_value = int(round(percent))
         self._progress_bar.setValue(bar_value)
-        done = sum(1 for s in self._file_statuses.values() if s == "done")
-        total = self._progress_bar_total
+        try:
+            file_num = self._run_files.index(path) + 1
+        except ValueError:
+            file_num = 1
+        total = len(self._run_files)
         self._status_label.setText(
-            f"File {done + 1} / {total}  —  {bar_value}%"
+            f"File {file_num} / {total}  —  {bar_value}%"
         )
 
     @pyqtSlot(str, str)
