@@ -218,6 +218,7 @@ def main() -> None:
 
     # Load model
     _log(f"Loading Whisper model '{model_name}' ...")
+    _emit({"type": "model_loading", "model": model_name})
     try:
         model = WhisperModel(
             model_name,
@@ -246,6 +247,7 @@ def main() -> None:
             _fatal(f"Failed to load Whisper model '{model_name}':\n\n{exc}")
             return
 
+    _emit({"type": "model_loaded", "model": model_name})
     _log(f"Model '{model_name}' loaded.")
 
     # Transcribe each file

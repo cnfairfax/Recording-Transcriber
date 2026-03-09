@@ -45,6 +45,8 @@ class TranscribeWorker(QThread):
     log_message     = pyqtSignal(str)        # informational text for the log box
     fatal_error     = pyqtSignal(str)        # unrecoverable error  shown as a dialog
     all_done        = pyqtSignal()
+    model_loading   = pyqtSignal(str)        # model_name — emitted when model load begins
+    model_loaded    = pyqtSignal(str)        # model_name — emitted when model is ready
 
     def __init__(
         self,
@@ -152,6 +154,10 @@ class TranscribeWorker(QThread):
                     event.get("path", ""),
                     percent,
                 )
+            elif etype == "model_loading":
+                self.model_loading.emit(event.get("model", ""))
+            elif etype == "model_loaded":
+                self.model_loaded.emit(event.get("model", ""))
             elif etype == "fatal":
                 self.fatal_error.emit(event.get("msg", "Unknown fatal error"))
             elif etype == "all_done":
