@@ -1,5 +1,8 @@
 # Plan 01 — Per-File Transcription Progress Bar
 
+## Status
+Complete
+
 ## Goal
 Show real-time progress (0–100%) for the file currently being transcribed, in addition to the existing file-count progress (e.g. "2 / 5 files").
 

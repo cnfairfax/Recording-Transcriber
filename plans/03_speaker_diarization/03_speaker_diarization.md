@@ -1,5 +1,8 @@
 # Plan 03 — Speaker Diarization (pyannote-audio, Bundled Models)
 
+## Status
+In Progress
+
 ## Prerequisites — Plan 01 Compatibility
 
 > **This plan is designed to be executed AFTER Plan 01 (Per-File Progress Bar)

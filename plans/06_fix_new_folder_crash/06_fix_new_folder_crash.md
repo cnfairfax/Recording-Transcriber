@@ -1,5 +1,8 @@
 # Plan 06 — Fix Crash When Creating New Folder in Output Directory Picker
 
+## Status
+Ready for Planning
+
 ## Goal
 
 Prevent the application from crashing with an access violation when the user clicks
