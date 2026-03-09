@@ -758,14 +758,22 @@ class MainWindow(QMainWindow):
     @safe_slot
     def _on_model_loading(self, model_name: str) -> None:
         self._progress_bar.setRange(0, 0)   # activates Qt's pulsing/indeterminate mode
-        self._status_label.setText(f"Loading model '{model_name}'…")
+        name = model_name.strip()
+        if name:
+            self._status_label.setText(f"Loading model '{name}'…")
+        else:
+            self._status_label.setText("Loading model…")
 
     @pyqtSlot(str)
     @safe_slot
     def _on_model_loaded(self, model_name: str) -> None:
         self._progress_bar.setRange(0, 100)  # return to determinate mode
         self._progress_bar.setValue(0)
-        self._status_label.setText(f"Model '{model_name}' ready — transcribing…")
+        name = model_name.strip()
+        if name:
+            self._status_label.setText(f"Model '{name}' ready — transcribing…")
+        else:
+            self._status_label.setText("Model ready — transcribing…")
 
     @pyqtSlot(str)
     @safe_slot

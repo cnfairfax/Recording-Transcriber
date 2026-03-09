@@ -22,11 +22,14 @@ Input schema::
 
 Output event types::
 
-    {"type": "log",          "msg": str}
-    {"type": "file_started", "path": str}
-    {"type": "file_done",    "path": str}
-    {"type": "file_error",   "path": str, "error": str}
-    {"type": "fatal",        "msg": str}
+    {"type": "model_loading", "model": str}
+    {"type": "model_loaded",  "model": str}
+    {"type": "log",           "msg": str}
+    {"type": "file_started",  "path": str}
+    {"type": "file_progress", "path": str, "percent": float}
+    {"type": "file_done",     "path": str}
+    {"type": "file_error",    "path": str, "error": str}
+    {"type": "fatal",         "msg": str}
     {"type": "all_done"}
 """
 

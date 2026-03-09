@@ -5,6 +5,7 @@ Verifies that:
 2. _on_model_loaded restores the progress bar to determinate 0-100 mode.
 3. Status label shows the correct "Loading model '...'" text.
 4. Status label shows the correct "Model '...' ready — transcribing…" text.
+5. Empty model name falls back to generic text without quotes.
 """
 
 from __future__ import annotations
@@ -91,3 +92,52 @@ def test_model_loaded_status_label(qtbot):
     assert label_text == "Model 'base' ready — transcribing…", (
         f"Expected \"Model 'base' ready — transcribing…\", got: {label_text!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 5 — _on_model_loading with empty model name uses generic fallback text
+# ---------------------------------------------------------------------------
+
+def test_model_loading_empty_name_fallback(qtbot):
+    """After _on_model_loading(''), status label shows generic 'Loading model…'."""
+    window = _make_window(qtbot)
+    window._on_model_loading("")
+    label_text = window._status_label.text()
+    assert label_text == "Loading model…", (
+        f"Expected \"Loading model…\" for empty name, got: {label_text!r}"
+    )
+
+
+def test_model_loading_whitespace_name_fallback(qtbot):
+    """After _on_model_loading('  '), whitespace-only name also uses generic fallback."""
+    window = _make_window(qtbot)
+    window._on_model_loading("  ")
+    label_text = window._status_label.text()
+    assert label_text == "Loading model…", (
+        f"Expected \"Loading model…\" for whitespace name, got: {label_text!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6 — _on_model_loaded with empty model name uses generic fallback text
+# ---------------------------------------------------------------------------
+
+def test_model_loaded_empty_name_fallback(qtbot):
+    """After _on_model_loaded(''), status label shows generic 'Model ready — transcribing…'."""
+    window = _make_window(qtbot)
+    window._on_model_loaded("")
+    label_text = window._status_label.text()
+    assert label_text == "Model ready — transcribing…", (
+        f"Expected \"Model ready — transcribing…\" for empty name, got: {label_text!r}"
+    )
+
+
+def test_model_loaded_whitespace_name_fallback(qtbot):
+    """After _on_model_loaded('  '), whitespace-only name also uses generic fallback."""
+    window = _make_window(qtbot)
+    window._on_model_loaded("  ")
+    label_text = window._status_label.text()
+    assert label_text == "Model ready — transcribing…", (
+        f"Expected \"Model ready — transcribing…\" for whitespace name, got: {label_text!r}"
+    )
+

@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import json
 import logging
+import queue
 import subprocess
 import sys
+import threading
 import traceback
 from pathlib import Path
 from typing import List, Set
@@ -109,19 +111,43 @@ class TranscribeWorker(QThread):
         except Exception:
             log.warning("Failed to write job to subprocess stdin", exc_info=True)
 
-        # Read events from stdout line by line
+        # Read events from stdout via a background reader thread so that
+        # _stop_requested is polled regularly even during long silent periods
+        # (e.g. while the Whisper model is being loaded / downloaded).
         assert proc.stdout is not None
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
+        _line_queue: queue.Queue[str | None] = queue.Queue()
 
-            # Stop requested – kill the child and bail out
+        def _reader(stdout: object, q: queue.Queue[str | None]) -> None:
+            try:
+                for raw in stdout:  # type: ignore[union-attr]
+                    q.put(raw)
+            finally:
+                q.put(None)  # sentinel — signals EOF
+
+        _reader_thread = threading.Thread(
+            target=_reader, args=(proc.stdout, _line_queue), daemon=True
+        )
+        _reader_thread.start()
+
+        while True:
+            # Poll for stop request between line reads (250 ms granularity)
             if self._stop_requested:
                 log.debug("Stop requested; terminating subprocess.")
                 proc.terminate()
                 self.log_message.emit("Transcription cancelled by user.")
                 break
+
+            try:
+                raw_line = _line_queue.get(timeout=0.25)
+            except queue.Empty:
+                continue
+
+            if raw_line is None:  # EOF sentinel from _reader
+                break
+
+            line = raw_line.strip()
+            if not line:
+                continue
 
             try:
                 event = json.loads(line)
