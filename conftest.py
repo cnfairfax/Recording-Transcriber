@@ -6,6 +6,12 @@ physical or virtual display server.
 """
 
 import os
+import sys
 
-if not os.environ.get("DISPLAY") and not os.environ.get("QT_QPA_PLATFORM"):
+if (
+    sys.platform.startswith("linux")
+    and not os.environ.get("DISPLAY")
+    and not os.environ.get("WAYLAND_DISPLAY")
+    and not os.environ.get("QT_QPA_PLATFORM")
+):
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
