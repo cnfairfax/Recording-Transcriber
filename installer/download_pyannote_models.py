@@ -32,11 +32,19 @@ def main():
     ]:
         name = repo_id.split("/")[1]
         print(f"Downloading {repo_id}…")
-        snapshot_download(
-            repo_id,
-            local_dir=str(out / name),
-            token=args.token,
-        )
+        try:
+            snapshot_download(
+                repo_id,
+                local_dir=str(out / name),
+                token=args.token,
+            )
+        except Exception as exc:
+            raise SystemExit(
+                f"Failed to download {repo_id}.\n"
+                f"  Error: {exc}\n"
+                "  Check that your --token is valid and you have accepted the model licence at\n"
+                f"  https://huggingface.co/{repo_id}"
+            ) from exc
         print(f"  → {out / name}")
 
     print("\nDone. Run pyinstaller next.")
