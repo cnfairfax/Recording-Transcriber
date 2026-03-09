@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import Dict, Set
 
 from PyQt6.QtCore import Qt, pyqtSlot
-from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont
+from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -64,6 +65,39 @@ STATUS_COLOR: Dict[str, str] = {
     "done":         "#4cd07d",
     "error":        "#ff5c5c",
 }
+
+def _create_check_icon(size: int = 16) -> str:
+    """Paint a white checkmark onto a QPixmap, save to temp dir, return the path.
+
+    Called once during ``MainWindow.__init__`` (after QApplication exists) and
+    the resulting path is injected into STYLESHEET before ``setStyleSheet`` is
+    called.  The file is small (~1 KB) and is recreated each launch so that
+    stale temp files from previous runs are replaced automatically.
+    """
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    pen = QPen(Qt.GlobalColor.white)
+    pen.setWidth(max(1, size // 8))
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    # Checkmark: down-stroke then up-stroke
+    painter.drawLine(3, 8, 6, 11)
+    painter.drawLine(6, 11, 12, 4)
+    painter.end()
+    # Create a private per-run temp directory to avoid collisions and symlink attacks
+    temp_dir = tempfile.mkdtemp(prefix="rt_", dir=tempfile.gettempdir())
+    path = os.path.join(temp_dir, "rt_check.png")
+    if not pixmap.save(path):
+        log.warning(
+            "Failed to save checkmark icon to %r — checkbox indicator will "
+            "show as a plain blue square without a checkmark.",
+            path,
+        )
+        return ""
+    return path.replace("\\", "/")
 
 STYLESHEET = """
 QMainWindow, QWidget {
@@ -212,6 +246,7 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background-color: #89b4fa;
     border-color: #89b4fa;
+    image: url("_CHECK_ICON_PATH_");
 }
 
 QSplitter::handle {
@@ -334,7 +369,7 @@ class MainWindow(QMainWindow):
         self._worker: TranscribeWorker | None = None
 
         self._build_ui()
-        self.setStyleSheet(STYLESHEET)
+        self.setStyleSheet(STYLESHEET.replace("_CHECK_ICON_PATH_", _create_check_icon()))
 
     # ------------------------------------------------------------------
     # UI construction
