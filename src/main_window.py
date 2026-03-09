@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import Dict, Set
 
 from PyQt6.QtCore import Qt, pyqtSlot
-from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont
+from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -65,16 +66,30 @@ STATUS_COLOR: Dict[str, str] = {
     "error":        "#ff5c5c",
 }
 
-# SVG data URI for the white checkmark rendered inside a checked QCheckBox
-# indicator.  Extracted as a constant so it can be updated without hunting
-# through the stylesheet string.
-_CHECKMARK_SVG_URI = (
-    "data:image/svg+xml;utf8,"
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
-    "<path d='M3.5 8.5 L6.5 11.5 L12.5 4.5' stroke='white' stroke-width='2.5'"
-    " fill='none' stroke-linecap='round' stroke-linejoin='round'/>"
-    "</svg>"
-)
+def _create_check_icon(size: int = 16) -> str:
+    """Paint a white checkmark onto a QPixmap, save to temp dir, return the path.
+
+    Called once during ``MainWindow.__init__`` (after QApplication exists) and
+    the resulting path is injected into STYLESHEET before ``setStyleSheet`` is
+    called.  The file is small (~1 KB) and is recreated each launch so that
+    stale temp files from previous runs are replaced automatically.
+    """
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    pen = QPen(Qt.GlobalColor.white)
+    pen.setWidth(max(1, size // 8))
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    # Checkmark: down-stroke then up-stroke
+    painter.drawLine(3, 8, 6, 11)
+    painter.drawLine(6, 11, 12, 4)
+    painter.end()
+    path = os.path.join(tempfile.gettempdir(), "rt_check.png")
+    pixmap.save(path)
+    return path.replace("\\", "/")
 
 STYLESHEET = """
 QMainWindow, QWidget {
@@ -223,7 +238,7 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background-color: #89b4fa;
     border-color: #89b4fa;
-    image: url("_CHECKMARK_SVG_URI_");
+    image: url(_CHECK_ICON_PATH_);
 }
 
 QSplitter::handle {
@@ -235,7 +250,7 @@ QStatusBar {
     color: #6c7086;
     border-top: 1px solid #313244;
 }
-""".replace("_CHECKMARK_SVG_URI_", _CHECKMARK_SVG_URI)
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +361,7 @@ class MainWindow(QMainWindow):
         self._worker: TranscribeWorker | None = None
 
         self._build_ui()
-        self.setStyleSheet(STYLESHEET)
+        self.setStyleSheet(STYLESHEET.replace("_CHECK_ICON_PATH_", _create_check_icon()))
 
     # ------------------------------------------------------------------
     # UI construction

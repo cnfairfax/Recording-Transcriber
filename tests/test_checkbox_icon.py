@@ -1,25 +1,26 @@
 """Tests for Plan 04 — Checkbox Checkmark Icon.
 
-Verifies that the STYLESHEET constant in src.main_window embeds a white SVG
-checkmark inside the QCheckBox::indicator:checked rule, and that a QCheckBox
-widget with that stylesheet applied behaves correctly.
+Verifies that the STYLESHEET constant in src.main_window includes an image:
+property in the QCheckBox::indicator:checked rule, that the programmatic
+checkmark helper creates the expected PNG file, and that a QCheckBox widget
+with the resolved stylesheet applied behaves correctly.
 """
 
+import os
 import re
 
 import pytest
-from PyQt6.QtWidgets import QApplication, QCheckBox
+from PyQt6.QtWidgets import QCheckBox
 
-from src.main_window import STYLESHEET
+from src.main_window import STYLESHEET, _create_check_icon
 
 
 # ---------------------------------------------------------------------------
-# Test 1 — STYLESHEET contains an image: property in the checked block
+# Test 1 — STYLESHEET template contains an image: property in the checked block
 # ---------------------------------------------------------------------------
 
 def test_stylesheet_contains_image_property():
     """The QCheckBox::indicator:checked block must declare an image: property."""
-    # Extract the QCheckBox::indicator:checked block.
     match = re.search(
         r"QCheckBox::indicator:checked\s*\{([^}]+)\}",
         STYLESHEET,
@@ -34,30 +35,28 @@ def test_stylesheet_contains_image_property():
 
 
 # ---------------------------------------------------------------------------
-# Test 2 — The embedded SVG references a white stroke
+# Test 2 — _create_check_icon writes a file named rt_check.png
 # ---------------------------------------------------------------------------
 
-def test_checkmark_references_white_stroke():
-    """The SVG data URI inside STYLESHEET must reference a white stroke for the checkmark path."""
-    has_white_stroke = (
-        "stroke='white'" in STYLESHEET or 'stroke="white"' in STYLESHEET
+def test_create_check_icon_writes_rt_check_png(qapp):
+    """_create_check_icon() must return a path ending in rt_check.png and create the file."""
+    path = _create_check_icon()
+    assert path.endswith("rt_check.png"), (
+        f"Expected _create_check_icon() to return a path ending in 'rt_check.png', got: {path}"
     )
-    assert has_white_stroke, (
-        "Expected SVG embedded in STYLESHEET to contain stroke='white' or "
-        'stroke="white" for the checkmark path, but it was not found.'
-    )
+    assert os.path.isfile(path), f"Expected file to exist at {path!r} but it was not found."
 
 
 # ---------------------------------------------------------------------------
-# Test 3 — Applying the full STYLESHEET to a QCheckBox raises no exception
+# Test 3 — Applying the resolved stylesheet to a QCheckBox raises no exception
 # ---------------------------------------------------------------------------
 
 def test_stylesheet_applies_without_error(qtbot):
-    """Instantiating a QCheckBox and applying STYLESHEET must not raise."""
+    """Instantiating a QCheckBox with the resolved (icon-injected) stylesheet must not raise."""
+    resolved = STYLESHEET.replace("_CHECK_ICON_PATH_", _create_check_icon())
     checkbox = QCheckBox("Test")
     qtbot.addWidget(checkbox)
-    # Should not raise
-    checkbox.setStyleSheet(STYLESHEET)
+    checkbox.setStyleSheet(resolved)
     checkbox.show()
 
 
@@ -67,9 +66,10 @@ def test_stylesheet_applies_without_error(qtbot):
 
 def test_checkbox_check_uncheck_toggle(qtbot):
     """setChecked(True) then setChecked(False) must correctly toggle isChecked()."""
+    resolved = STYLESHEET.replace("_CHECK_ICON_PATH_", _create_check_icon())
     checkbox = QCheckBox("Toggle me")
     qtbot.addWidget(checkbox)
-    checkbox.setStyleSheet(STYLESHEET)
+    checkbox.setStyleSheet(resolved)
 
     assert not checkbox.isChecked(), "Checkbox should start unchecked"
 
