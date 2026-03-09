@@ -15,5 +15,10 @@ PyQt6>=6.4.0
 faster-whisper>=1.0.0
 openvino>=2024.0.0
 
+# Speaker diarization (Plan 03 — optional feature)
+torch>=2.0.0
+torchaudio>=2.0.0
+pyannote.audio>=3.1
+
 # Build tooling (only needed to produce the installer, not to run the app)
 pyinstaller>=6.0.0

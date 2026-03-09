@@ -102,6 +102,16 @@ for pkg in ("av", "soundfile"):
         pass  # optional; skip if not installed
 
 
+# ── Add bundled pyannote models (if present) ────────────────────────────────
+_pyannote_models_src = os.path.join(ROOT, "models", "pyannote")
+if os.path.isdir(_pyannote_models_src):
+    _shared_datas.append((_pyannote_models_src, "models/pyannote"))
+else:
+    print(
+        "WARNING: models/pyannote/ not found — diarization will be unavailable.\n"
+        "         Run: python installer/download_pyannote_models.py --token YOUR_TOKEN"
+    )
+
 # ── Analysis: main application ──────────────────────────────────────────────────
 main_a = Analysis(
     [os.path.join(ROOT, "app.py")],
