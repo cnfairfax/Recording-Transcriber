@@ -718,9 +718,8 @@ class MainWindow(QMainWindow):
     @safe_slot
     def _on_file_done(self, path: str) -> None:
         self._update_item_status(path, "done")
-        # Snap to 100% briefly to signal completion, then reset for the next file
+        # Snap to 100% to signal completion; _on_file_started will reset for the next file
         self._progress_bar.setValue(100)
-        self._progress_bar.setValue(0)
         done = sum(1 for s in self._file_statuses.values() if s == "done")
         total = self._progress_bar_total
         self._status_label.setText(f"Transcribing {done} / {total} …")
