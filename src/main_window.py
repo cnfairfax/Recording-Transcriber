@@ -238,7 +238,7 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background-color: #89b4fa;
     border-color: #89b4fa;
-    image: url(_CHECK_ICON_PATH_);
+    image: url("_CHECK_ICON_PATH_");
 }
 
 QSplitter::handle {
