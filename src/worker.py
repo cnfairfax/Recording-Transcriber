@@ -38,12 +38,13 @@ _TASK_SCRIPT = str(Path(__file__).parent / "transcribe_task.py")
 class TranscribeWorker(QThread):
     """Runs faster-whisper in a background QThread and emits progress signals."""
 
-    file_started = pyqtSignal(str)       # file_path
-    file_done    = pyqtSignal(str)       # file_path
-    file_error   = pyqtSignal(str, str)  # file_path, error message
-    log_message  = pyqtSignal(str)       # informational text for the log box
-    fatal_error  = pyqtSignal(str)       # unrecoverable error  shown as a dialog
-    all_done     = pyqtSignal()
+    file_started    = pyqtSignal(str)        # file_path
+    file_done       = pyqtSignal(str)        # file_path
+    file_error      = pyqtSignal(str, str)   # file_path, error message
+    file_progress   = pyqtSignal(str, float) # file_path, percent 0–100
+    log_message     = pyqtSignal(str)        # informational text for the log box
+    fatal_error     = pyqtSignal(str)        # unrecoverable error  shown as a dialog
+    all_done        = pyqtSignal()
 
     def __init__(
         self,
@@ -136,6 +137,21 @@ class TranscribeWorker(QThread):
                 self.file_done.emit(event["path"])
             elif etype == "file_error":
                 self.file_error.emit(event["path"], event.get("error", ""))
+            elif etype == "file_progress":
+                raw_percent = event.get("percent", 0)
+                try:
+                    percent = float(raw_percent)
+                except (TypeError, ValueError):
+                    log.warning(
+                        "Malformed 'file_progress' percent value %r in event: %s",
+                        raw_percent,
+                        event,
+                    )
+                    percent = 0.0
+                self.file_progress.emit(
+                    event.get("path", ""),
+                    percent,
+                )
             elif etype == "fatal":
                 self.fatal_error.emit(event.get("msg", "Unknown fatal error"))
             elif etype == "all_done":

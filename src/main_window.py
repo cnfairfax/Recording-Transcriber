@@ -367,6 +367,8 @@ class MainWindow(QMainWindow):
         # State
         self._file_statuses: Dict[str, str] = {}   # path -> status
         self._worker: TranscribeWorker | None = None
+        self._progress_bar_total: int = 0           # number of files in the current run
+        self._run_files: list[str] = []             # ordered file list for the current run
 
         self._build_ui()
         self.setStyleSheet(STYLESHEET.replace("_CHECK_ICON_PATH_", _create_check_icon()))
@@ -676,10 +678,13 @@ class MainWindow(QMainWindow):
         self._worker.log_message.connect(self._log)
         self._worker.fatal_error.connect(self._on_fatal_error)
         self._worker.all_done.connect(self._on_all_done)
+        self._worker.file_progress.connect(self._on_file_progress)
 
         self._transcribe_btn.setEnabled(False)
         self._cancel_btn.setEnabled(True)
-        self._progress_bar.setRange(0, len(queued_files))
+        self._progress_bar_total = len(queued_files)
+        self._run_files = list(queued_files)
+        self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
         self._status_label.setText(f"Transcribing 0 / {len(queued_files)} …")
         self._worker.start()
@@ -708,15 +713,39 @@ class MainWindow(QMainWindow):
     @safe_slot
     def _on_file_started(self, path: str) -> None:
         self._update_item_status(path, "transcribing")
+        self._progress_bar.setRange(0, 100)
+        self._progress_bar.setValue(0)
 
     @pyqtSlot(str)
     @safe_slot
     def _on_file_done(self, path: str) -> None:
         self._update_item_status(path, "done")
-        done = sum(1 for s in self._file_statuses.values() if s == "done")
-        total_in_run = self._progress_bar.maximum()
-        self._progress_bar.setValue(done)
-        self._status_label.setText(f"Transcribing {done} / {total_in_run} …")
+        # Snap to 100% to signal completion; _on_file_started will reset for the next file
+        self._progress_bar.setValue(100)
+        done = sum(1 for p in self._run_files if self._file_statuses.get(p) == "done")
+        total = len(self._run_files)
+        self._status_label.setText(f"Transcribing {done} / {total} …")
+
+    @pyqtSlot(str, float)
+    @safe_slot
+    def _on_file_progress(self, path: str, percent: float) -> None:
+        """Update the progress bar and status label with per-file transcription progress.
+
+        Called by TranscribeWorker.file_progress for each processed segment.
+        ``percent`` is in the 0–100 range (inclusive).  The bar range is
+        already fixed at 0-100 by ``_start_transcription`` and
+        ``_on_file_started``; no need to call ``setRange`` here.
+        """
+        bar_value = int(round(percent))
+        self._progress_bar.setValue(bar_value)
+        try:
+            file_num = self._run_files.index(path) + 1
+        except ValueError:
+            file_num = 1
+        total = len(self._run_files)
+        self._status_label.setText(
+            f"File {file_num} / {total}  —  {bar_value}%"
+        )
 
     @pyqtSlot(str, str)
     @safe_slot
@@ -741,5 +770,7 @@ class MainWindow(QMainWindow):
         self._status_label.setText(
             f"Finished – {done} succeeded, {errors} failed."
         )
-        self._progress_bar.setValue(self._progress_bar.maximum())
+        # Fill bar to 100% to signal completion; range is always 0-100 now
+        self._progress_bar.setRange(0, 100)
+        self._progress_bar.setValue(100)
         self._worker = None
