@@ -258,8 +258,13 @@ def main() -> None:
             kwargs["language"] = language
 
         try:
-            segments_gen, _info = model.transcribe(path, **kwargs)
-            segments = list(segments_gen)
+            segments_gen, info = model.transcribe(path, **kwargs)
+            duration = info.duration or 1.0   # guard against None / 0
+            segments = []
+            for seg in segments_gen:
+                segments.append(seg)
+                pct = min(100.0, (seg.end / duration) * 100)
+                _emit({"type": "file_progress", "path": path, "percent": round(pct, 1)})
             _save_outputs(path, segments, output_dir, formats)
             _emit({"type": "file_done", "path": path})
             _log(f"Done: {Path(path).name}")
