@@ -87,7 +87,9 @@ def _create_check_icon(size: int = 16) -> str:
     painter.drawLine(3, 8, 6, 11)
     painter.drawLine(6, 11, 12, 4)
     painter.end()
-    path = os.path.join(tempfile.gettempdir(), "rt_check.png")
+    # Create a private per-run temp directory to avoid collisions and symlink attacks
+    temp_dir = tempfile.mkdtemp(prefix="rt_", dir=tempfile.gettempdir())
+    path = os.path.join(temp_dir, "rt_check.png")
     pixmap.save(path)
     return path.replace("\\", "/")
 
