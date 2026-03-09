@@ -679,6 +679,8 @@ class MainWindow(QMainWindow):
         self._worker.fatal_error.connect(self._on_fatal_error)
         self._worker.all_done.connect(self._on_all_done)
         self._worker.file_progress.connect(self._on_file_progress)
+        self._worker.model_loading.connect(self._on_model_loading)
+        self._worker.model_loaded.connect(self._on_model_loaded)
 
         self._transcribe_btn.setEnabled(False)
         self._cancel_btn.setEnabled(True)
@@ -751,6 +753,27 @@ class MainWindow(QMainWindow):
     @safe_slot
     def _on_file_error(self, path: str, error: str) -> None:
         self._update_item_status(path, "error")
+
+    @pyqtSlot(str)
+    @safe_slot
+    def _on_model_loading(self, model_name: str) -> None:
+        self._progress_bar.setRange(0, 0)   # activates Qt's pulsing/indeterminate mode
+        name = model_name.strip()
+        if name:
+            self._status_label.setText(f"Loading model '{name}'…")
+        else:
+            self._status_label.setText("Loading model…")
+
+    @pyqtSlot(str)
+    @safe_slot
+    def _on_model_loaded(self, model_name: str) -> None:
+        self._progress_bar.setRange(0, 100)  # return to determinate mode
+        self._progress_bar.setValue(0)
+        name = model_name.strip()
+        if name:
+            self._status_label.setText(f"Model '{name}' ready — transcribing…")
+        else:
+            self._status_label.setText("Model ready — transcribing…")
 
     @pyqtSlot(str)
     @safe_slot
