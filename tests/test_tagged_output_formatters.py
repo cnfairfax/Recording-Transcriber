@@ -119,7 +119,8 @@ def test_save_outputs_txt_with_speaker():
         _save_outputs("/fake/audio.wav", tagged, out_dir, ["txt"])
         txt_path = os.path.join(out_dir, "audio.txt")
         assert os.path.exists(txt_path)
-        content = open(txt_path, encoding="utf-8").read()
+        with open(txt_path, encoding="utf-8") as fh:
+            content = fh.read()
         assert "[Speaker 1]" in content
         assert "Hello world" in content
 
@@ -132,7 +133,8 @@ def test_save_outputs_txt_no_speaker_when_none():
     with tempfile.TemporaryDirectory() as out_dir:
         _save_outputs("/fake/audio.wav", tagged, out_dir, ["txt"])
         txt_path = os.path.join(out_dir, "audio.txt")
-        content = open(txt_path, encoding="utf-8").read()
+        with open(txt_path, encoding="utf-8") as fh:
+            content = fh.read()
         assert "[Speaker" not in content
         assert "Hello world" in content
 
@@ -146,7 +148,8 @@ def test_save_outputs_srt_with_speaker():
         _save_outputs("/fake/audio.wav", tagged, out_dir, ["srt"])
         srt_path = os.path.join(out_dir, "audio.srt")
         assert os.path.exists(srt_path)
-        content = open(srt_path, encoding="utf-8").read()
+        with open(srt_path, encoding="utf-8") as fh:
+            content = fh.read()
         assert "[Speaker 1]" in content
         assert "Hello world" in content
 
@@ -160,7 +163,8 @@ def test_save_outputs_vtt_with_speaker():
         _save_outputs("/fake/audio.wav", tagged, out_dir, ["vtt"])
         vtt_path = os.path.join(out_dir, "audio.vtt")
         assert os.path.exists(vtt_path)
-        content = open(vtt_path, encoding="utf-8").read()
+        with open(vtt_path, encoding="utf-8") as fh:
+            content = fh.read()
         assert content.startswith("WEBVTT")
         assert "[Speaker 1]" in content
         assert "Hello world" in content
