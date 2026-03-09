@@ -90,7 +90,13 @@ def _create_check_icon(size: int = 16) -> str:
     # Create a private per-run temp directory to avoid collisions and symlink attacks
     temp_dir = tempfile.mkdtemp(prefix="rt_", dir=tempfile.gettempdir())
     path = os.path.join(temp_dir, "rt_check.png")
-    pixmap.save(path)
+    if not pixmap.save(path):
+        log.warning(
+            "Failed to save checkmark icon to %r — checkbox indicator will "
+            "show as a plain blue square without a checkmark.",
+            path,
+        )
+        return ""
     return path.replace("\\", "/")
 
 STYLESHEET = """
