@@ -731,9 +731,10 @@ class MainWindow(QMainWindow):
         """Update the progress bar and status label with per-file transcription progress.
 
         Called by TranscribeWorker.file_progress for each processed segment.
-        ``percent`` is in the 0–100 range (inclusive).
+        ``percent`` is in the 0–100 range (inclusive).  The bar range is
+        already fixed at 0-100 by ``_start_transcription`` and
+        ``_on_file_started``; no need to call ``setRange`` here.
         """
-        self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(int(percent))
         done = sum(1 for s in self._file_statuses.values() if s == "done")
         total = self._progress_bar_total

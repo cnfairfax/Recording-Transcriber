@@ -11,6 +11,8 @@ Verifies that:
 from __future__ import annotations
 
 import pytest
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QListWidgetItem
 
 from src.main_window import MainWindow
 
@@ -87,9 +89,6 @@ def test_file_done_resets_progress_bar(qtbot):
     window._progress_bar.setValue(75)
     # Mark the file as done in statuses so _update_item_status works correctly
     # (add a matching list item so _update_item_status can find it)
-    from PyQt6.QtWidgets import QListWidgetItem
-    from PyQt6.QtCore import Qt
-
     item = QListWidgetItem("a.wav")
     item.setData(Qt.ItemDataRole.UserRole, "a.wav")
     window._file_list.addItem(item)
@@ -110,9 +109,6 @@ def test_file_started_resets_progress_bar(qtbot):
     window = _make_window(qtbot)
     # Simulate bar mid-progress before next file starts
     window._progress_bar.setValue(55)
-
-    from PyQt6.QtWidgets import QListWidgetItem
-    from PyQt6.QtCore import Qt
 
     item = QListWidgetItem("a.wav")
     item.setData(Qt.ItemDataRole.UserRole, "a.wav")
