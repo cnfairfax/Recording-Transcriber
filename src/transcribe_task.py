@@ -79,22 +79,36 @@ def _fmt_vtt(s: float) -> str:
     return f"{int(h):02d}:{int(m):02d}:{int(sec):02d}.{ms:03d}"
 
 
-def _to_srt(segments: list) -> str:
+def _build_speaker_map(tagged_segments: list) -> dict:
+    """Map raw pyannote labels to friendly numbered names."""
+    speaker_map: dict = {}
+    counter = 1
+    for _, speaker in tagged_segments:
+        if speaker and speaker not in speaker_map:
+            speaker_map[speaker] = f"Speaker {counter}"
+            counter += 1
+    return speaker_map
+
+
+def _to_srt(tagged_segments: list) -> str:
+    speaker_map = _build_speaker_map(tagged_segments)
     lines: List[str] = []
-    for i, seg in enumerate(segments, 1):
-        lines.append(
-            f"{i}\n{_fmt_srt(seg.start)} --> {_fmt_srt(seg.end)}\n"
-            f"{seg.text.strip()}\n"
-        )
+    for i, (seg, speaker) in enumerate(tagged_segments, 1):
+        label = f"[{speaker_map[speaker]}] " if speaker else ""
+        start = _fmt_srt(seg.start)
+        end = _fmt_srt(seg.end)
+        lines.append(f"{i}\n{start} --> {end}\n{label}{seg.text.strip()}\n")
     return "\n".join(lines)
 
 
-def _to_vtt(segments: list) -> str:
+def _to_vtt(tagged_segments: list) -> str:
+    speaker_map = _build_speaker_map(tagged_segments)
     lines = ["WEBVTT\n"]
-    for seg in segments:
+    for seg, speaker in tagged_segments:
+        label = f"[{speaker_map[speaker]}] " if speaker else ""
         lines.append(
             f"{_fmt_vtt(seg.start)} --> {_fmt_vtt(seg.end)}\n"
-            f"{seg.text.strip()}\n"
+            f"{label}{seg.text.strip()}\n"
         )
     return "\n".join(lines)
 
@@ -146,7 +160,7 @@ def detect_best_device() -> tuple:
 # Output saving
 # ---------------------------------------------------------------------------
 
-def _save_outputs(file_path: str, segments: list, output_dir: str,
+def _save_outputs(file_path: str, tagged_segments: list, output_dir: str,
                   formats: list) -> None:
     base_name = Path(file_path).stem
     out_dir = output_dir if output_dir else str(Path(file_path).parent)
@@ -154,18 +168,23 @@ def _save_outputs(file_path: str, segments: list, output_dir: str,
 
     if "txt" in formats:
         out = os.path.join(out_dir, base_name + ".txt")
+        speaker_map = _build_speaker_map(tagged_segments)
+        parts = []
+        for seg, speaker in tagged_segments:
+            label = f"[{speaker_map[speaker]}] " if speaker else ""
+            parts.append(f"{label}{seg.text.strip()}")
         with open(out, "w", encoding="utf-8") as f:
-            f.write(" ".join(seg.text.strip() for seg in segments))
+            f.write(" ".join(parts))
 
     if "srt" in formats:
         out = os.path.join(out_dir, base_name + ".srt")
         with open(out, "w", encoding="utf-8") as f:
-            f.write(_to_srt(segments))
+            f.write(_to_srt(tagged_segments))
 
     if "vtt" in formats:
         out = os.path.join(out_dir, base_name + ".vtt")
         with open(out, "w", encoding="utf-8") as f:
-            f.write(_to_vtt(segments))
+            f.write(_to_vtt(tagged_segments))
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +277,7 @@ def main() -> None:
     formats     = job.get("formats", ["txt"])
     language    = job.get("language") or None
     file_paths  = job["file_paths"]
+    diarize     = job.get("diarize", False)
 
     # Import faster-whisper
     try:
@@ -342,7 +362,29 @@ def main() -> None:
                 segments.append(seg)
                 pct = min(100.0, (seg.end / duration) * 100)
                 _emit({"type": "file_progress", "path": path, "percent": round(pct, 1)})
-            _save_outputs(path, segments, output_dir, formats)
+
+            # Speaker diarization (after transcription loop)
+            if diarize:
+                _log("Running speaker diarization…")
+                try:
+                    turns = _diarize(path)
+                    tagged = _assign_speakers(segments, turns)
+                except ImportError:
+                    _log(
+                        "Speaker diarization requires pyannote.audio. "
+                        "Install with: pip install pyannote.audio torch torchaudio"
+                    )
+                    tagged = [(seg, None) for seg in segments]
+                except FileNotFoundError as exc:
+                    _log(f"Bundled diarization models not found. Reinstall the application. ({exc})")
+                    tagged = [(seg, None) for seg in segments]
+                except Exception as exc:
+                    _log(f"Diarization failed, proceeding without speaker labels: {exc}")
+                    tagged = [(seg, None) for seg in segments]
+            else:
+                tagged = [(seg, None) for seg in segments]
+
+            _save_outputs(path, tagged, output_dir, formats)
             _emit({"type": "file_done", "path": path})
             _log(f"Done: {Path(path).name}")
         except Exception as exc:
