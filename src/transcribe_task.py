@@ -173,9 +173,17 @@ def _save_outputs(file_path: str, segments: list, output_dir: str,
 # ---------------------------------------------------------------------------
 
 def _pyannote_model_dir() -> Path:
-    """Return the path to the bundled pyannote models."""
+    """Return the path to the bundled pyannote models.
+
+    When running as a PyInstaller bundle ``sys.frozen`` is ``True`` and
+    ``sys._MEIPASS`` holds the temporary extraction directory.  The
+    ``_MEIPASS`` attribute is set by PyInstaller alongside ``frozen``, so it
+    is always present when ``frozen`` is truthy; ``getattr`` is used here
+    purely as a defensive measure.
+    """
     if getattr(sys, "frozen", False):
-        return Path(sys._MEIPASS) / "models" / "pyannote"
+        meipass = getattr(sys, "_MEIPASS", "")
+        return Path(meipass) / "models" / "pyannote"
     return Path(__file__).resolve().parent.parent / "models" / "pyannote"
 
 
@@ -191,7 +199,7 @@ def _load_diarization_pipeline():
     return Pipeline.from_pretrained(str(pipeline_dir))
 
 
-def _diarize(audio_path: str) -> list:
+def _diarize(audio_path: str) -> list[tuple[float, float, str]]:
     """Run speaker diarization and return speaker turn segments.
 
     Returns a list of (start, end, speaker) tuples.
@@ -204,7 +212,10 @@ def _diarize(audio_path: str) -> list:
     ]
 
 
-def _assign_speakers(segments, turns) -> list:
+def _assign_speakers(
+    segments: list,
+    turns: list[tuple[float, float, str]],
+) -> list[tuple]:
     """Assign the best-overlap speaker label to each transcription segment.
 
     Parameters
