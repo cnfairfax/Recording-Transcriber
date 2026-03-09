@@ -57,6 +57,7 @@ class TranscribeWorker(QThread):
         output_dir: str,
         formats: Set[str],
         language: str | None = None,
+        diarize: bool = False,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -65,6 +66,7 @@ class TranscribeWorker(QThread):
         self.output_dir  = output_dir
         self.formats     = formats
         self.language    = language or None
+        self.diarize     = diarize
         self._stop_requested = False
 
     def request_stop(self) -> None:
@@ -82,6 +84,7 @@ class TranscribeWorker(QThread):
             "formats":    list(self.formats),
             "language":   self.language,
             "file_paths": self.file_paths,
+            "diarize":    self.diarize,
         }
         job_json = json.dumps(job)
 
