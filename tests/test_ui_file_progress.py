@@ -69,12 +69,19 @@ def test_file_progress_bar_is_determinate(qtbot):
 # ---------------------------------------------------------------------------
 
 def test_file_progress_status_label_contains_percent(qtbot):
-    """After _on_file_progress('a.wav', 42.0), status label must contain '42%'."""
+    """After _on_file_progress('a.wav', 42.0), status label must show 'File N / M — 42%'."""
     window = _make_window(qtbot)
     window._on_file_progress("a.wav", 42.0)
     label_text = window._status_label.text()
     assert "42%" in label_text, (
         f"Expected '42%' in status label text, got: {label_text!r}"
+    )
+    # Verify the full format: "File N / M  —  P%"
+    assert "File" in label_text, (
+        f"Expected 'File' in status label text, got: {label_text!r}"
+    )
+    assert "/ 3" in label_text, (
+        f"Expected '/ 3' (total) in status label text, got: {label_text!r}"
     )
 
 
