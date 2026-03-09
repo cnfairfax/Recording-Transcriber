@@ -1,7 +1,7 @@
 """Tests for Plan 01 Task 01-03 — Two-Tier Progress Bar and _on_file_progress Slot.
 
 Verifies that:
-1. _on_file_progress updates the progress bar value to int(percent).
+1. _on_file_progress updates the progress bar value to int(round(percent)).
 2. _on_file_progress keeps the progress bar in determinate 0-100 mode.
 3. _on_file_progress updates the status label to include the percentage.
 4. _on_file_done resets the progress bar to 0 for the next file.
@@ -43,11 +43,11 @@ def _make_window(qtbot) -> MainWindow:
 # ---------------------------------------------------------------------------
 
 def test_file_progress_sets_bar_value(qtbot):
-    """After _on_file_progress('a.wav', 42.7), progress_bar.value() == 42."""
+    """After _on_file_progress('a.wav', 42.7), progress_bar.value() == 43 (rounded)."""
     window = _make_window(qtbot)
     window._on_file_progress("a.wav", 42.7)
-    assert window._progress_bar.value() == 42, (
-        f"Expected progress_bar.value() == 42, got {window._progress_bar.value()}"
+    assert window._progress_bar.value() == 43, (
+        f"Expected progress_bar.value() == 43, got {window._progress_bar.value()}"
     )
 
 

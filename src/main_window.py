@@ -734,11 +734,12 @@ class MainWindow(QMainWindow):
         already fixed at 0-100 by ``_start_transcription`` and
         ``_on_file_started``; no need to call ``setRange`` here.
         """
-        self._progress_bar.setValue(int(percent))
+        bar_value = int(round(percent))
+        self._progress_bar.setValue(bar_value)
         done = sum(1 for s in self._file_statuses.values() if s == "done")
         total = self._progress_bar_total
         self._status_label.setText(
-            f"File {done + 1} / {total}  —  {percent:.0f}%"
+            f"File {done + 1} / {total}  —  {bar_value}%"
         )
 
     @pyqtSlot(str, str)
