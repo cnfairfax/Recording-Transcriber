@@ -73,7 +73,6 @@ def _run_main(job_json: str, mock_model) -> list[dict]:
     Patches out:
     - WhisperModel construction → returns *mock_model*
     - detect_best_device → ("cpu", "int8")
-    - model_download_root → None (no real FS lookup)
     - sys.stdout → captured so we can parse JSON events
 
     Returns the list of parsed JSON event dicts emitted to stdout.
