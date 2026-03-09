@@ -469,6 +469,18 @@ class MainWindow(QMainWindow):
         fmt_layout.addWidget(self._fmt_vtt)
         settings_row.addWidget(fmt_box)
 
+        # Options (diarization)
+        options_box = QGroupBox("Options")
+        options_layout = QVBoxLayout(options_box)
+        self._diarize_checkbox = QCheckBox("Speaker Diarization")
+        self._diarize_checkbox.setChecked(False)
+        self._diarize_checkbox.setToolTip(
+            "Label each segment with the detected speaker.\n"
+            "Requires pyannote.audio — adds ~30–60 s per file on CPU."
+        )
+        options_layout.addWidget(self._diarize_checkbox)
+        settings_row.addWidget(options_box)
+
         root.addLayout(settings_row)
 
         # ── Output directory ───────────────────────────────────────────
@@ -671,6 +683,7 @@ class MainWindow(QMainWindow):
             output_dir=output_dir,
             formats=formats,
             language=language,
+            diarize=self._diarize_checkbox.isChecked(),
         )
         self._worker.file_started.connect(self._on_file_started)
         self._worker.file_done.connect(self._on_file_done)

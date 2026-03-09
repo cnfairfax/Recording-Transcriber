@@ -45,6 +45,12 @@ from typing import List
 
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_UNKNOWN_SPEAKER = "Unknown"
+
+# ---------------------------------------------------------------------------
 # Stdout helpers – every message is a newline-delimited JSON object so the
 # parent process can parse events one-by-one from stdout.
 # ---------------------------------------------------------------------------
@@ -250,7 +256,7 @@ def _assign_speakers(
     """
     result = []
     for seg in segments:
-        best_speaker, best_overlap = "Unknown", 0.0
+        best_speaker, best_overlap = _UNKNOWN_SPEAKER, 0.0
         for t_start, t_end, speaker in turns:
             overlap = max(0.0, min(seg.end, t_end) - max(seg.start, t_start))
             if overlap > best_overlap:
@@ -372,11 +378,11 @@ def main() -> None:
                 except ImportError:
                     _log(
                         "Speaker diarization requires pyannote.audio. "
-                        "Install with: pip install pyannote.audio torch torchaudio"
+                        "Reinstall the application with diarization support."
                     )
                     tagged = [(seg, None) for seg in segments]
-                except FileNotFoundError as exc:
-                    _log(f"Bundled diarization models not found. Reinstall the application. ({exc})")
+                except FileNotFoundError:
+                    _log("Bundled diarization models not found. Reinstall the application.")
                     tagged = [(seg, None) for seg in segments]
                 except Exception as exc:
                     _log(f"Diarization failed, proceeding without speaker labels: {exc}")

@@ -42,7 +42,7 @@ def main():
             raise SystemExit(
                 f"Failed to download {repo_id}.\n"
                 f"  Error: {exc}\n"
-                "  Check that your --token is valid and you have accepted the model licence at\n"
+                "  Check that your --token is valid and you have accepted the model license at\n"
                 f"  https://huggingface.co/{repo_id}"
             ) from exc
         print(f"  → {out / name}")
