@@ -138,9 +138,19 @@ class TranscribeWorker(QThread):
             elif etype == "file_error":
                 self.file_error.emit(event["path"], event.get("error", ""))
             elif etype == "file_progress":
+                raw_percent = event.get("percent", 0)
+                try:
+                    percent = float(raw_percent)
+                except (TypeError, ValueError):
+                    log.warning(
+                        "Malformed 'file_progress' percent value %r in event: %s",
+                        raw_percent,
+                        event,
+                    )
+                    percent = 0.0
                 self.file_progress.emit(
                     event.get("path", ""),
-                    float(event.get("percent", 0)),
+                    percent,
                 )
             elif etype == "fatal":
                 self.fatal_error.emit(event.get("msg", "Unknown fatal error"))
