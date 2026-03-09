@@ -169,6 +169,67 @@ def _save_outputs(file_path: str, segments: list, output_dir: str,
 
 
 # ---------------------------------------------------------------------------
+# Diarization helpers
+# ---------------------------------------------------------------------------
+
+def _pyannote_model_dir() -> Path:
+    """Return the path to the bundled pyannote models."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "models" / "pyannote"
+    return Path(__file__).resolve().parent.parent / "models" / "pyannote"
+
+
+def _load_diarization_pipeline():
+    """Load the local pyannote diarization pipeline."""
+    from pyannote.audio import Pipeline  # lazy import — optional dependency
+    pipeline_dir = _pyannote_model_dir() / "speaker-diarization-3.1"
+    if not pipeline_dir.exists():
+        raise FileNotFoundError(
+            f"Bundled diarization model not found at {pipeline_dir}. "
+            "Reinstall the application."
+        )
+    return Pipeline.from_pretrained(str(pipeline_dir))
+
+
+def _diarize(audio_path: str) -> list:
+    """Run speaker diarization and return speaker turn segments.
+
+    Returns a list of (start, end, speaker) tuples.
+    """
+    pipeline = _load_diarization_pipeline()
+    diarization = pipeline(audio_path)
+    return [
+        (turn.start, turn.end, speaker)
+        for turn, _, speaker in diarization.itertracks(yield_label=True)
+    ]
+
+
+def _assign_speakers(segments, turns) -> list:
+    """Assign the best-overlap speaker label to each transcription segment.
+
+    Parameters
+    ----------
+    segments:
+        Iterable of segment objects with ``start`` and ``end`` float attributes.
+    turns:
+        List of ``(t_start, t_end, speaker)`` tuples from ``_diarize()``.
+
+    Returns
+    -------
+    list of ``(segment, speaker_label)`` tuples.
+    """
+    result = []
+    for seg in segments:
+        best_speaker, best_overlap = "Unknown", 0.0
+        for t_start, t_end, speaker in turns:
+            overlap = max(0.0, min(seg.end, t_end) - max(seg.start, t_start))
+            if overlap > best_overlap:
+                best_overlap, best_speaker = overlap, speaker
+        result.append((seg, best_speaker))
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
