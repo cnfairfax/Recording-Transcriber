@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -24,6 +25,9 @@ from typing import Optional
 FASTER_WHISPER_INDEX = "https://pypi.org/simple"
 OPENVINO_PACKAGE     = "openvino"
 BASE_PACKAGES        = ["faster-whisper", "openvino"]
+
+TORCH_PACKAGES       = ["torch", "torchaudio"]
+TORCH_CPU_INDEX      = "https://download.pytorch.org/whl/cpu"
 
 
 def _run(cmd: list[str]) -> Optional[str]:
@@ -127,9 +131,26 @@ def main() -> int:
     ov_ok = _importable("openvino")
     print("OK" if ov_ok else "NOT FOUND")
 
+    #  Check torch / torchaudio (required by pyannote.audio) 
+    # torchaudio >= 2.5 removed torchaudio.AudioMetaData which pyannote needs.
+    print("Checking torch / torchaudio ...", end=" ")
+    torch_ok = _importable("torch")
+    torchaudio_ok = _importable("torchaudio")
+    if torch_ok and torchaudio_ok:
+        # Verify torchaudio version is installed
+        ver_out = _run([sys.executable, "-c",
+                        "import torchaudio; print(torchaudio.__version__)"])
+        if ver_out:
+            print(f"OK ({ver_out.strip()})")
+        else:
+            print("OK")
+    else:
+        print("NOT FOUND")
+
     if args.check:
+        all_ok = fw_ok and ov_ok and torch_ok and torchaudio_ok
         print("\n(--check mode: no changes made)")
-        return 0 if (fw_ok and ov_ok) else 1
+        return 0 if all_ok else 1
 
     #  Install missing packages 
     to_install = []
@@ -144,10 +165,17 @@ def main() -> int:
             print("\nInstallation failed. Check the output above.")
             return 1
 
+    if not torch_ok or not torchaudio_ok:
+        print(f"\nInstalling torch + torchaudio ...")
+        if not _pip_install(TORCH_PACKAGES, extra_index=TORCH_CPU_INDEX):
+            print("\ntorch/torchaudio installation failed. Check the output above.")
+            return 1
+
     #  Verify 
     print("\nVerifying installation ...")
     fw_ok = _importable("faster_whisper")
     ov_ok = _importable("openvino")
+    torch_ok = _importable("torch") and _importable("torchaudio")
 
     if fw_ok:
         print("  OK  faster-whisper")
@@ -158,6 +186,36 @@ def main() -> int:
         print("  OK  openvino (Intel Arc support)")
     else:
         print("  FAIL  openvino  try:  pip install openvino")
+
+    if torch_ok:
+        print("  OK  torch + torchaudio (pyannote.audio diarization)")
+    else:
+        print(f"  FAIL  torch/torchaudio  try:  pip install torch torchaudio --index-url {TORCH_CPU_INDEX}")
+
+    #  Check pyannote model weights
+    print()
+    print("Checking bundled pyannote model weights ...")
+    models_base = Path(__file__).resolve().parent / "models" / "pyannote"
+    required_models = [
+        "speaker-diarization-3.1",
+        "segmentation-3.0",
+        "wespeaker-voxceleb-resnet34-LM",
+    ]
+    models_ok = True
+    for m in required_models:
+        path = models_base / m
+        if path.exists() and any(path.iterdir()):
+            print(f"  OK  {m}")
+        else:
+            print(f"  MISSING  {m}")
+            models_ok = False
+    if not models_ok:
+        print()
+        print("  To download missing models (requires HuggingFace token + license acceptance):")
+        print("    python installer/download_pyannote_models.py --token YOUR_HF_TOKEN")
+        print("  Accept each model license at:")
+        for m in required_models:
+            print(f"    https://huggingface.co/pyannote/{m}")
 
     if not fw_ok:
         return 1

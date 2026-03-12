@@ -143,6 +143,18 @@ class TranscribeWorker(QThread):
             try:
                 raw_line = _line_queue.get(timeout=0.25)
             except queue.Empty:
+                # Guard against Windows Error Reporting (WER) holding the
+                # subprocess handle alive after a crash.  WER keeps stdout open
+                # while it collects a dump, preventing the reader thread from
+                # delivering the EOF sentinel.  Polling the process here lets us
+                # detect exit without waiting for WER.
+                if proc.poll() is not None:
+                    log.warning(
+                        "Subprocess exited (code %s) without sending EOF; "
+                        "breaking event loop.",
+                        proc.returncode,
+                    )
+                    break
                 continue
 
             if raw_line is None:  # EOF sentinel from _reader

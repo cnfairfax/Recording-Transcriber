@@ -67,25 +67,24 @@ def _job_json(tmp_path) -> str:
 
 
 def _run_main(job_json: str, mock_model) -> list[dict]:
-    """
-    Invoke transcribe_task.main() with *job_json* on stdin.
+    from src import transcribe_task
 
-    Patches out:
-    - WhisperModel construction → returns *mock_model*
-    - detect_best_device → ("cpu", "int8")
-    - sys.stdout → captured so we can parse JSON events
-
-    Returns the list of parsed JSON event dicts emitted to stdout.
-    """
-    from src import transcribe_task  # local import so patch targets are correct
+    # Pre-inject a stub module so transcribe_task.main()'s
+    #   from faster_whisper import WhisperModel
+    # never loads the real faster_whisper package.  Loading faster_whisper
+    # triggers ctranslate2 → torch._load_dll_libraries() → WinError 1114
+    # (DLL init failure) on Windows.  sys.modules is checked by the import
+    # machinery before any real import is attempted.
+    fake_fw = types.ModuleType("faster_whisper")
+    fake_fw.WhisperModel = MagicMock(return_value=mock_model)
 
     captured = io.StringIO()
-
     with (
+        patch.dict(sys.modules, {"faster_whisper": fake_fw}),
         patch("sys.stdin", io.StringIO(job_json)),
         patch("sys.stdout", captured),
-        patch.object(transcribe_task, "detect_best_device", return_value=("cpu", "int8")),
-        patch("faster_whisper.WhisperModel", return_value=mock_model),
+        patch.object(transcribe_task, "detect_best_device",
+                     return_value=("cpu", "int8")),
     ):
         transcribe_task.main()
 
