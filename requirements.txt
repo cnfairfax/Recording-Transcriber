@@ -15,5 +15,25 @@ PyQt6>=6.4.0
 faster-whisper>=1.0.0
 openvino>=2024.0.0
 
+# Speaker diarization (Plan 03 — optional feature)
+# pyannote.audio 4.x replaced soundfile/torchaudio with torchcodec, which
+# requires FFmpeg full-shared DLLs that are not present on Windows.  Pin to
+# the 3.x line (latest: 3.4.0) which uses soundfile/torchaudio and works on
+# all platforms without extra system dependencies.
+#
+# torchaudio 2.5.0 removed the torchaudio.AudioMetaData class that
+# pyannote.audio 3.x references as a return-type annotation in core/io.py.
+# Wheels for torch < 2.5 are not available for Python 3.13, so we cannot
+# downgrade.  A compatibility shim is injected at import time in
+# transcribe_task.py to restore the missing attribute before pyannote loads.
+torch>=2.0.0
+torchaudio>=2.0.0
+pyannote.audio>=3.1,<4.0
+
+# Pin protobuf to <7 to satisfy googleapis-common-protos and opentelemetry-proto
+# (both require protobuf<7). onnxruntime has no lower-bound constraint on protobuf
+# and works correctly with any version in this range.
+protobuf>=3.20.2,<7
+
 # Build tooling (only needed to produce the installer, not to run the app)
 pyinstaller>=6.0.0

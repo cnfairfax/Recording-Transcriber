@@ -1,5 +1,8 @@
 # Plan 04 — Checkbox Checkmark Icon
 
+## Status
+Complete
+
 ## Goal
 Show a visible white checkmark (`✓`) inside the checkbox when it is checked, so the checked vs. unchecked state is immediately obvious.
 

@@ -1,5 +1,8 @@
 # Plan 02 — Model Loading Progress Indicator
 
+## Status
+Complete
+
 ## Goal
 Show a visible, animated indicator while the Whisper model is being loaded so the user knows the app hasn't frozen.
 

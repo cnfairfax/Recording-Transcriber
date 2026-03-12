@@ -469,6 +469,18 @@ class MainWindow(QMainWindow):
         fmt_layout.addWidget(self._fmt_vtt)
         settings_row.addWidget(fmt_box)
 
+        # Options (diarization)
+        options_box = QGroupBox("Options")
+        options_layout = QVBoxLayout(options_box)
+        self._diarize_checkbox = QCheckBox("Speaker Diarization")
+        self._diarize_checkbox.setChecked(False)
+        self._diarize_checkbox.setToolTip(
+            "Label each segment with the detected speaker.\n"
+            "Requires pyannote.audio — adds ~30–60 s per file on CPU."
+        )
+        options_layout.addWidget(self._diarize_checkbox)
+        settings_row.addWidget(options_box)
+
         root.addLayout(settings_row)
 
         # ── Output directory ───────────────────────────────────────────
@@ -671,6 +683,7 @@ class MainWindow(QMainWindow):
             output_dir=output_dir,
             formats=formats,
             language=language,
+            diarize=self._diarize_checkbox.isChecked(),
         )
         self._worker.file_started.connect(self._on_file_started)
         self._worker.file_done.connect(self._on_file_done)
@@ -681,6 +694,9 @@ class MainWindow(QMainWindow):
         self._worker.file_progress.connect(self._on_file_progress)
         self._worker.model_loading.connect(self._on_model_loading)
         self._worker.model_loaded.connect(self._on_model_loaded)
+        # Use Qt's built-in `finished` signal (fires after run() returns) for
+        # cleanup so that the QThread is never destroyed while still running.
+        self._worker.finished.connect(self._on_worker_finished)
 
         self._transcribe_btn.setEnabled(False)
         self._cancel_btn.setEnabled(True)
@@ -775,6 +791,20 @@ class MainWindow(QMainWindow):
         else:
             self._status_label.setText("Model ready — transcribing…")
 
+    @pyqtSlot()
+    @safe_slot
+    def _on_worker_finished(self) -> None:
+        """Called when the worker QThread has fully exited (Qt `finished` signal).
+
+        `finished` is emitted by Qt's C++ layer *after* ``run()`` returns, so
+        it is safe to destroy the object here.  ``deleteLater()`` defers the
+        C++ destruction to the next event-loop iteration, giving Qt a chance to
+        clean up any pending cross-thread signal deliveries first.
+        """
+        if self._worker is not None:
+            self._worker.deleteLater()
+            self._worker = None
+
     @pyqtSlot(str)
     @safe_slot
     def _log(self, message: str) -> None:
@@ -796,4 +826,8 @@ class MainWindow(QMainWindow):
         # Fill bar to 100% to signal completion; range is always 0-100 now
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(100)
-        self._worker = None
+        # Do NOT set self._worker = None here.  The all_done signal fires
+        # while run() is still executing (it's the last statement), so
+        # destroying the QThread here causes the
+        # "QThread: Destroyed while thread is still running" crash.
+        # Cleanup is handled in _on_worker_finished, connected to `finished`.
